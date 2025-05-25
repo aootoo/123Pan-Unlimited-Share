@@ -34,17 +34,21 @@ class Pan123Database:
 
     def insertData(self, codeHash:str, rootFolderName:str, visibleFlag:bool, shareCode:str):
         # visibleFlag: True: 公开, None: 公开(但是待审核), False: 私密
-        if self.queryHash(codeHash) != []:
-            print(f"rootFolderName: {rootFolderName}, codeHash: {codeHash} 已存在, 不插入")
-            print(f"检索结果: {self.queryHash(codeHash)[0][1]}")
+        try:
+            if self.queryHash(codeHash) != []:
+                print(f"rootFolderName: {rootFolderName}, codeHash: {codeHash} 已存在, 不插入")
+                print(f"检索结果: {self.queryHash(codeHash)[0][1]}")
+                return True
+            # 插入数据
+            self.database.execute(
+                "INSERT INTO PAN123DATABASE (codeHash, rootFolderName, visibleFlag, shareCode) VALUES (?, ?, ?, ?)",
+                (codeHash, rootFolderName, visibleFlag, shareCode)
+                )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"插入数据失败, 原因: {e}")
             return False
-        # 插入数据
-        self.database.execute(
-            "INSERT INTO PAN123DATABASE (codeHash, rootFolderName, visibleFlag, shareCode) VALUES (?, ?, ?, ?)",
-            (codeHash, rootFolderName, visibleFlag, shareCode)
-            )
-        self.conn.commit()
-        return True
 
     def queryHash(self, codeHash:str):
         self.database.execute("SELECT * FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
@@ -53,8 +57,8 @@ class Pan123Database:
     
     def listData(self, visibleFlag: bool=True):
         # 只展示visibleFlag为True (公开且审核通过) 的数据
-        self.database.execute("SELECT * FROM PAN123DATABASE WHERE visibleFlag=?", (visibleFlag,))
-        # 数据示例: [(codeHash, rootFolderName, visibleFlag, shareCode), ...]
+        self.database.execute("SELECT codeHash, rootFolderName FROM PAN123DATABASE WHERE visibleFlag=?", (visibleFlag,))
+        # 数据示例: [(codeHash, rootFolderName), ...]
         return self.database.fetchall()
     
     def deleteData(self, codeHash:str):
@@ -70,5 +74,5 @@ class Pan123Database:
 
 if __name__ == "__main__":
     db = Pan123Database()
-    [print(i[1]) for i in db.listData()]
+    [print(i) for i in db.listData()]
     db.close()
