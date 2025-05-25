@@ -5,6 +5,8 @@ from bs4 import BeautifulSoup
 import urllib.parse
 from tqdm import tqdm
 from Pan123 import Pan123
+from database import Pan123Database
+from utils import getStringHash
 
 def getContent(channel_name, after_id, debug=False):
 
@@ -202,24 +204,50 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, debug=Fal
         json.dump(total_json_processed_data, f, ensure_ascii=False, indent=4)
     
     # 调用 Pan123 导出 *.123share 到公共资源库
+    # for key, value in total_json_processed_data.items():
+    #     # 如果name已经存在, 则跳过
+    #     if os.path.exists(f"./public/ok/{value.get('name')}.123share"):
+    #         if debug:
+    #             print(f"[{key}] 跳过：{value.get('name')}, 原因：文件已存在")
+    #         continue
+    #     print(f"[{key}] 导出新增内容：{value.get('name')}, 链接：{value.get('link')}, 密码：{value.get('pwd')}")
+    #     driver = Pan123(debug=debug)
+    #     iter_driver = driver.exportShare(shareKey=value.get("link"), sharePwd=value.get("pwd"), parentFileId=0)
+    #     for current_state in iter_driver:
+    #         if current_state.get("isFinish"):
+    #             with open(f"./public/ok/{value.get('name')}.123share", "w") as f:
+    #                 f.write(current_state.get("message"))
+    #             print(f"[{key}] 导出成功：{value.get('name')}")
+    #         elif current_state.get("isFinish") is None:
+    #             continue
+    #         else:
+    #             print(f"[{key}] 导出失败：{value.get('name')}, 原因：{current_state.get('message')}")
+    #             break
+    
+    # 调用 Pan123 导入数据到数据库
+    db = Pan123Database(debug=debug)
     for key, value in total_json_processed_data.items():
         # 如果name已经存在, 则跳过
-        if os.path.exists(f"./public/ok/{value.get('name')}.123share"):
+        if db.queryName(rootFolderName=value.get("name")) is not None:
             if debug:
-                print(f"[{key}] 跳过：{value.get('name')}, 原因：文件已存在")
+                print(f"[{key}] 跳过：{value.get('name')}, 原因：数据库内已存在")
             continue
-        print(f"[{key}] 导出新增内容：{value.get('name')}, 链接：{value.get('link')}, 密码：{value.get('pwd')}")
+        print(f"[{key}] 导入新增内容：{value.get('name')}, 链接：{value.get('link')}, 密码：{value.get('pwd')}")
         driver = Pan123(debug=debug)
         iter_driver = driver.exportShare(shareKey=value.get("link"), sharePwd=value.get("pwd"), parentFileId=0)
         for current_state in iter_driver:
             if current_state.get("isFinish"):
-                with open(f"./public/ok/{value.get('name')}.123share", "w") as f:
-                    f.write(current_state.get("message"))
-                print(f"[{key}] 导出成功：{value.get('name')}")
+                db.insertData(
+                    codeHash=getStringHash(current_state.get("message")),
+                    rootFolderName=value.get("name"),
+                    visibleFlag=True,
+                    shareCode=current_state.get("message")
+                    )
+                print(f"[{key}] 导入成功：{value.get('name')}")
             elif current_state.get("isFinish") is None:
                 continue
             else:
-                print(f"[{key}] 导出失败：{value.get('name')}, 原因：{current_state.get('message')}")
+                print(f"[{key}] 导入失败：{value.get('name')}, 原因：{current_state.get('message')}")
                 break
 
 if __name__ == "__main__":
