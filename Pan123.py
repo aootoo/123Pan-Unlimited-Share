@@ -224,6 +224,8 @@ class Pan123:
         yield {"isFinish": None, "message": f"数据匿名化中..."}
         ALL_ITEMS = anonymizeId(ALL_ITEMS)
         yield {"isFinish": None, "message": f"数据匿名化完成"}
+        # 清空读取记录
+        self.listFilesVisited = {}
         # 返回url_safe的base64数据(防止被简单的内容审查程序读取内容)
         yield {"isFinish": True, "message": base64.urlsafe_b64encode(json.dumps(ALL_ITEMS, ensure_ascii=False).encode("utf-8")).decode("utf-8")}
 
@@ -503,5 +505,7 @@ class Pan123:
         yield {"isFinish": None, "message": f"数据匿名化中..."}
         ALL_ITEMS = anonymizeId(ALL_ITEMS)
         yield {"isFinish": None, "message": f"数据匿名化完成"}
+        # 清空读取记录
+        self.listShareVisited = {}
         # 返回url_safe的base64数据(防止被简单的内容审查程序读取内容)
         yield {"isFinish": True, "message": base64.urlsafe_b64encode(json.dumps(ALL_ITEMS, ensure_ascii=False).encode("utf-8")).decode("utf-8")}

@@ -2,3 +2,5 @@ flask
 tqdm
 requests
 beautifulsoup4
+hashlib
+sqlite3

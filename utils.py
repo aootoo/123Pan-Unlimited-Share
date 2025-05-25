@@ -1,4 +1,4 @@
-
+import hashlib
 
 # 构建AbsPath
 def makeAbsPath(fullDict, parentFileId=0, debug=False):
@@ -49,3 +49,7 @@ def anonymizeId(itemsList):
             "AbsPath": _absPath,
         })
     return RESULT
+
+# 输入一段文本(这里是base64加密厚的字符串), 输出string的hash值
+def getStringHash(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
