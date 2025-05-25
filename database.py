@@ -145,6 +145,46 @@ class Pan123Database:
             print(f"已删除 codeHash: {codeHash}")
         return True # True 表示成功删除
 
+    def listAllDataForAdmin(self):
+        # 为 admin 界面获取所有数据，稍后在 Python 中分类
+        self.database.execute("SELECT codeHash, rootFolderName, shareCode, timeStamp, visibleFlag FROM PAN123DATABASE ORDER BY timeStamp DESC")
+        result = []
+        for codeHash, rootFolderName, shareCode, timeStamp, visibleFlag in self.database.fetchall():
+            result.append((codeHash, rootFolderName, shareCode, timeStamp, bool(visibleFlag) if visibleFlag is not None else None))
+        return result
+
+    def updateVisibleFlag(self, codeHash: str, newVisibleFlag: bool):
+        try:
+            self.database.execute("UPDATE PAN123DATABASE SET visibleFlag=? WHERE codeHash=?", (newVisibleFlag, codeHash))
+            self.conn.commit()
+            if self.database.rowcount > 0:
+                if self.debug:
+                    print(f"已更新 codeHash: {codeHash} 的 visibleFlag 为 {newVisibleFlag}")
+                return True
+            else:
+                if self.debug:
+                    print(f"未找到 codeHash: {codeHash}，无法更新 visibleFlag")
+                return False # 未找到记录
+        except Exception as e:
+            print(f"更新 visibleFlag 失败 (codeHash: {codeHash}): {e}")
+            return False
+ 
+    def updateRootFolderName(self, codeHash: str, newRootFolderName: str):
+        try:
+            self.database.execute("UPDATE PAN123DATABASE SET rootFolderName=? WHERE codeHash=?", (newRootFolderName, codeHash))
+            self.conn.commit()
+            if self.database.rowcount > 0:
+                if self.debug:
+                    print(f"已更新 codeHash: {codeHash} 的 rootFolderName 为 {newRootFolderName}")
+                return True
+            else:
+                if self.debug:
+                    print(f"未找到 codeHash: {codeHash}，无法更新 rootFolderName")
+                return False # 未找到记录
+        except Exception as e:
+            print(f"更新 rootFolderName 失败 (codeHash: {codeHash}): {e}")
+            return False
+
     def close(self):
         if self.conn:
             self.conn.close()
