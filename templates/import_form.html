@@ -6,7 +6,6 @@
     <title>123云盘无限制分享工具 - 导入到私人网盘 - GitHub@realcwj</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <!-- 此处无需额外style块，因为通用样式和特定组件样式已移至style.css -->
 </head>
 <body>
     <div class="container main-container">
@@ -29,7 +28,6 @@
                     <div class="form-text">123云盘的登录密码（担心隐私风险? 推荐 <a href="https://github.com/realcwj/123Pan-Unlimited-Share?tab=readme-ov-file#%E6%8E%A8%E8%8D%90%E6%9C%AC%E5%9C%B0%E9%83%A8%E7%BD%B2%E5%8F%AF%E8%A7%86%E5%8C%96%E7%95%8C%E9%9D%A2%E7%BD%91%E9%A1%B5" target="_blank">本地部署</a>）</div>
                 </div>
                 
-                <!-- Tab Navigation -->
                 <ul class="nav nav-tabs mt-4 mb-0" id="importTabs" role="tablist">
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active" id="public-repo-tab" data-bs-toggle="tab" data-bs-target="#publicRepoContent" type="button" role="tab" aria-controls="publicRepoContent" aria-selected="true">从公共资源库</button>
@@ -42,9 +40,7 @@
                     </li>
                 </ul>
 
-                <!-- Tab Content -->
                 <div class="tab-content" id="importTabsContent">
-                    <!-- Public Repo Tab Pane -->
                     <div class="tab-pane fade show active" id="publicRepoContent" role="tabpanel" aria-labelledby="public-repo-tab">
                         <p class="mt-2"><strong>从公共资源库选择:</strong></p>
                         <div class="mb-3">
@@ -59,7 +55,6 @@
                         <input type="hidden" id="selectedPublicCodeHash" name="selectedPublicCodeHash">
                     </div>
 
-                    <!-- Short Code Tab Pane -->
                     <div class="tab-pane fade" id="shortCodeContent" role="tabpanel" aria-labelledby="short-code-tab">
                         <div class="mb-3 mt-3">
                             <label for="shortCodeInput" class="form-label">短分享码</label>
@@ -68,7 +63,6 @@
                         </div>
                     </div>
 
-                    <!-- Long Code Tab Pane -->
                     <div class="tab-pane fade" id="longCodeContent" role="tabpanel" aria-labelledby="long-code-tab">
                         <div class="mb-3 mt-3">
                             <label for="longBase64DataInput" class="form-label">长分享码 (Base64)</label>
@@ -102,308 +96,14 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Cookie functions (remains the same)
-        function setCookie(name, value, days) {
-            let expires = "";
-            if (days) {
-                let date = new Date();
-                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-                expires = "; expires=" + date.toUTCString();
-            }
-            document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Lax";
-        }
-
-        function getCookie(name) {
-            let nameEQ = name + "=";
-            let ca = document.cookie.split(';');
-            for (let i = 0; i < ca.length; i++) {
-                let c = ca[i];
-                while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-                if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
-            }
-            return null;
-        }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            const importForm = document.getElementById('importForm');
-            const resultArea = document.getElementById('resultArea');
-            const statusMessage = document.getElementById('statusMessage');
-            const logOutput = document.getElementById('logOutput');
-            
-            // Tab related elements
-            const publicRepoTab = document.getElementById('public-repo-tab');
-            const shortCodeTab = document.getElementById('short-code-tab');
-            const longCodeTab = document.getElementById('long-code-tab');
-            const selectedPublicCodeHashInput = document.getElementById('selectedPublicCodeHash');
-
-            const publicSharesListDiv = document.getElementById('publicSharesListActual');
-            const publicShareSearchInput = document.getElementById('publicShareSearch');
-            let allPublicShares = [];
-            let currentActiveTab = 'publicRepoContent'; // Default active tab ID
-
-            // Store references to inputs in each tab
-            const shortCodeInput = document.getElementById('shortCodeInput');
-            const longBase64DataInput = document.getElementById('longBase64DataInput');
-            const longRootFolderNameInput = document.getElementById('longRootFolderNameInput');
-            const importShareProjectCheckbox = document.getElementById('importShareProject');
-
-            // Load credentials from cookies
-            const savedUsername = getCookie('username');
-            const savedPassword = getCookie('password');
-            if (savedUsername) {
-                document.getElementById('username').value = savedUsername;
-            }
-            if (savedPassword) {
-                document.getElementById('password').value = savedPassword;
-            }
-
-            // Listen to tab changes to set currentActiveTab
-            document.querySelectorAll('#importTabs button[data-bs-toggle="tab"]').forEach(tabEl => {
-                tabEl.addEventListener('shown.bs.tab', function (event) {
-                    currentActiveTab = event.target.getAttribute('aria-controls');
-                    // Clear inputs when switching tabs to avoid confusion
-                    if (currentActiveTab !== 'publicRepoContent') selectedPublicCodeHashInput.value = '';
-                    if (currentActiveTab !== 'shortCodeContent') shortCodeInput.value = '';
-                    if (currentActiveTab !== 'longCodeContent') {
-                        longBase64DataInput.value = '';
-                        longRootFolderNameInput.value = '';
-                        importShareProjectCheckbox.checked = false;
-                    }
-                    // 清除之前可能添加的 .active 类 (确保只有一个列表项被视觉上标记为选中)
-                    document.querySelectorAll('.public-share-item.active').forEach(activeItem => {
-                        activeItem.classList.remove('active');
-                    });
-                     // 重置消息区域
-                    if (statusMessage.textContent.startsWith('已选择公共资源:')) {
-                        statusMessage.textContent = '请输入必填信息。';
-                        statusMessage.className = 'alert alert-info';
-                    }
-                });
-            });
-
-            importForm.addEventListener('submit', async function (event) {
-                event.preventDefault();
-                resultArea.style.display = 'block';
-                logOutput.textContent = ''; 
-                statusMessage.textContent = '准备开始...';
-                statusMessage.className = 'alert alert-info'; 
-
-                const username = document.getElementById('username').value;
-                const password = document.getElementById('password').value;
-
-                setCookie('username', username, 30);
-                setCookie('password', password, 30);
-
-                let payload = {
-                    username: username,
-                    password: password
-                };
-
-                let formValid = true;
-
-                if (currentActiveTab === 'publicRepoContent') {
-                    if (!selectedPublicCodeHashInput.value) {
-                        statusMessage.textContent = '错误: 请先从公共资源库选择一项资源。';
-                        statusMessage.className = 'alert alert-danger';
-                        formValid = false;
-                    }
-                    payload.codeHash = selectedPublicCodeHashInput.value;
-                } else if (currentActiveTab === 'shortCodeContent') {
-                    if (!shortCodeInput.value.trim()) {
-                        statusMessage.textContent = '错误: 请输入短分享码。';
-                        statusMessage.className = 'alert alert-danger';
-                        shortCodeInput.focus();
-                        formValid = false;
-                    }
-                    payload.codeHash = shortCodeInput.value.trim();
-                } else if (currentActiveTab === 'longCodeContent') {
-                    if (!longBase64DataInput.value.trim()) {
-                        statusMessage.textContent = '错误: 请输入长分享码。';
-                        statusMessage.className = 'alert alert-danger';
-                        longBase64DataInput.focus();
-                        formValid = false;
-                    }
-                    if (!longRootFolderNameInput.value.trim()) {
-                        statusMessage.textContent = '错误: 请输入根目录名。';
-                        statusMessage.className = 'alert alert-danger';
-                        longRootFolderNameInput.focus();
-                        formValid = false;
-                    }
-                    payload.base64Data = longBase64DataInput.value.trim();
-                    payload.rootFolderName = longRootFolderNameInput.value.trim();
-                    payload.shareProject = importShareProjectCheckbox.checked;
-                } else {
-                     statusMessage.textContent = '错误: 未知的导入模式。';
-                     statusMessage.className = 'alert alert-danger';
-                     formValid = false;
-                }
-
-                if (!formValid) return;
-
-                try {
-                    const response = await fetch("{{ url_for('api_import') }}", {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(payload),
-                    });
-
-                    if (!response.ok && response.headers.get("content-type")?.includes("application/json")) {
-                        const errorData = await response.json();
-                        statusMessage.textContent = `错误: ${errorData.message || response.statusText}`;
-                        statusMessage.className = 'alert alert-danger';
-                        logOutput.textContent += `请求失败: ${errorData.message || response.statusText}\n`;
-                        return;
-                    } else if (!response.ok) {
-                        statusMessage.textContent = `服务器错误: ${response.status} ${response.statusText}`;
-                        statusMessage.className = 'alert alert-danger';
-                        logOutput.textContent += `服务器错误: ${response.status} ${response.statusText}\n`;
-                        return;
-                    }
-                    
-                    statusMessage.textContent = "处理中，请稍候...";
-                    statusMessage.className = 'alert alert-info';
-
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder('utf-8');
-                    let buffer = '';
-
-                    while (true) {
-                        const { value, done } = await reader.read();
-                        if (done) break;
-                        
-                        buffer += decoder.decode(value, { stream: true });
-                        const lines = buffer.split('\n');
-                        buffer = lines.pop(); 
-
-                        for (const line of lines) {
-                            if (line.trim() === '') continue;
-                            try {
-                                const jsonData = JSON.parse(line);
-                                if (jsonData.isFinish === null) {
-                                    logOutput.textContent += `${jsonData.message}\n`;
-                                    statusMessage.textContent = jsonData.message; 
-                                } else if (jsonData.isFinish === true) {
-                                    statusMessage.textContent = `导入成功: ${jsonData.message}`;
-                                    statusMessage.className = 'alert alert-success';
-                                } else if (jsonData.isFinish === false) {
-                                    statusMessage.textContent = `操作失败: ${jsonData.message}`;
-                                    statusMessage.className = 'alert alert-danger';
-                                    logOutput.textContent += `最终错误: ${jsonData.message}\n`;
-                                }
-                                logOutput.scrollTop = logOutput.scrollHeight; 
-                            } catch (e) {
-                                console.error('解析JSON行时出错:', line, e);
-                                logOutput.textContent += `错误: 无法解析流数据: ${line}\n`;
-                            }
-                        }
-                    }
-                    if (buffer.trim() !== '') {
-                         try {
-                            const jsonData = JSON.parse(buffer);
-                            if (jsonData.isFinish === null) {
-                                logOutput.textContent += `${jsonData.message}\n`;
-                                statusMessage.textContent = jsonData.message;
-                            } else if (jsonData.isFinish === true) {
-                                statusMessage.textContent = `导入成功: ${jsonData.message}`;
-                                statusMessage.className = 'alert alert-success';
-                            } else if (jsonData.isFinish === false) {
-                                statusMessage.textContent = `操作失败: ${jsonData.message}`;
-                                statusMessage.className = 'alert alert-danger';
-                                logOutput.textContent += `最终错误: ${jsonData.message}\n`;
-                            }
-                             logOutput.scrollTop = logOutput.scrollHeight;
-                        } catch (e) {
-                            console.error('解析最终JSON缓冲区时出错:', buffer, e);
-                            logOutput.textContent += `错误: 无法解析末尾流数据: ${buffer}\n`;
-                        }
-                    }
-
-                } catch (error) {
-                    console.error('Fetch请求错误:', error);
-                    statusMessage.textContent = `请求发送失败: ${error.message}`;
-                    statusMessage.className = 'alert alert-danger';
-                    logOutput.textContent += `请求发送失败: ${error.message}\n`;
-                }
-            });
-
-            // --- Public Shares ---
-            async function fetchPublicShares() {
-                try {
-                    const response = await fetch("{{ url_for('list_public_shares_from_db') }}");
-                    if (!response.ok) {
-                        publicSharesListDiv.innerHTML = '<p class="text-danger text-center">加载公共资源列表失败。</p>';
-                        return;
-                    }
-                    const data = await response.json();
-                    if (data.success && data.files && data.files.length > 0) {
-                        allPublicShares = data.files; // files: [{name, codeHash, timestamp}, ...]
-                        renderPublicShares(allPublicShares);
-                    } else if (data.success && (!data.files || data.files.length === 0)) {
-                         publicSharesListDiv.innerHTML = '<p class="text-muted text-center">暂无公共资源。</p>';
-                    } else {
-                        publicSharesListDiv.innerHTML = `<p class="text-danger text-center">加载公共资源列表失败: ${data.message || '未知错误'}</p>`;
-                    }
-                } catch (error) {
-                    console.error("获取公共资源时出错:", error);
-                    publicSharesListDiv.innerHTML = '<p class="text-danger text-center">加载公共资源列表时发生网络错误。</p>';
-                }
-            }
-
-            function renderPublicShares(shares) {
-                publicSharesListDiv.innerHTML = ''; 
-                if (shares.length === 0 && publicShareSearchInput.value) {
-                    publicSharesListDiv.innerHTML = '<p class="text-muted text-center">沒有匹配的公共资源。</p>';
-                    return;
-                } else if (shares.length === 0) {
-                    publicSharesListDiv.innerHTML = '<p class="text-muted text-center">暂无公共资源。</p>';
-                    return;
-                }
-
-                shares.forEach(share => {
-                    const item = document.createElement('div');
-                    item.classList.add('public-share-item');
-                    
-                    const nameSpan = document.createElement('span');
-                    nameSpan.classList.add('share-name');
-                    nameSpan.textContent = share.name;
-                    item.appendChild(nameSpan);
-
-                    const tsSpan = document.createElement('span');
-                    tsSpan.classList.add('share-timestamp');
-                    const date = new Date(share.timestamp);
-                    tsSpan.textContent = `更新时间: ${date.toLocaleString()}`;
-                    item.appendChild(tsSpan);
-
-                    item.dataset.codehash = share.codeHash;
-                    item.dataset.rootname = share.name; 
-
-                    item.addEventListener('click', function() {
-                        document.querySelectorAll('.public-share-item.active').forEach(activeItem => {
-                            activeItem.classList.remove('active');
-                        });
-                        this.classList.add('active'); 
-
-                        selectedPublicCodeHashInput.value = this.dataset.codehash;
-                        statusMessage.textContent = `已选择公共资源: ${this.dataset.rootname}`;
-                        statusMessage.className = 'alert alert-secondary'; 
-                        logOutput.textContent = ''; 
-                    });
-                    publicSharesListDiv.appendChild(item);
-                });
-            }
-            
-            publicShareSearchInput.addEventListener('input', function(e) {
-                const searchTerm = e.target.value.toLowerCase();
-                const filteredShares = allPublicShares.filter(share => 
-                    share.name.toLowerCase().includes(searchTerm)
-                );
-                renderPublicShares(filteredShares);
-            });
-
-            fetchPublicShares(); // Initial load
-        });
+        window.APP_CONFIG = {
+            apiImportUrl: "{{ url_for('api_import') }}",
+            apiListPublicSharesUrl: "{{ url_for('list_public_shares_from_db') }}"
+        };
     </script>
+    <script src="{{ url_for('static', filename='js/cookieUtils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/uiUtils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/streamApiHandler.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/importPage.js') }}"></script>
 </body>
 </html>

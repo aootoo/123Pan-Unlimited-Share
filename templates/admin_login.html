@@ -41,47 +41,7 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Cookie functions
-        function setCookie(name, value, days) {
-            let expires = "";
-            if (days) {
-                let date = new Date();
-                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-                expires = "; expires=" + date.toUTCString();
-            }
-            document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Lax";
-        }
-
-        function getCookie(name) {
-            let nameEQ = name + "=";
-            let ca = document.cookie.split(';');
-            for (let i = 0; i < ca.length; i++) {
-                let c = ca[i];
-                while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-                if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
-            }
-            return null;
-        }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            const adminLoginForm = document.getElementById('adminLoginForm');
-            const usernameInput = document.getElementById('username');
-
-            // 从 Cookie 加载用户名
-            const savedAdminUsername = getCookie('admin_username');
-            if (savedAdminUsername) {
-                usernameInput.value = savedAdminUsername;
-            }
-
-            if(adminLoginForm) {
-                adminLoginForm.addEventListener('submit', function() {
-                    // 登录成功后，Flask 后端会设置 session 和 cookie
-                    // 这里可以保留 setCookie('admin_username', usernameInput.value, 30);
-                    // 但由于后端已经处理了 cookie 设置，这里可以简化或移除，除非有特定前端需求
-                });
-            }
-        });
-    </script>
+    <script src="{{ url_for('static', filename='js/cookieUtils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/adminLoginPage.js') }}"></script>
 </body>
 </html>
