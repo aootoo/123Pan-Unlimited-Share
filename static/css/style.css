@@ -3,8 +3,8 @@
 :root {
     --background-blue: #e6f7ff; 
     --card-background: rgba(255, 255, 255, 0.9); 
-    --primary-dark-blue: #0056b3; 
-    --primary-dark-blue-hover: #004494; 
+    --primary-dark-blue: #0056b3; /* 主要深蓝色, “开始导入”按钮默认背景 */
+    --primary-dark-blue-hover: #004494; /* 主要深蓝色悬停, “开始导入”按钮悬停背景 */
     --button-active-green: #198754; 
     --button-active-green-border: #146c43; 
     --button-active-green-shadow: rgba(25, 135, 84, 0.3); 
@@ -14,6 +14,9 @@
     --input-focus-shadow: rgba(0, 86, 179, 0.25);
     --border-radius-card: 20px; 
     --border-radius-elements: 10px; 
+    /* --light-blue-hover: #d1e9ff; */ /* 此变量在当前需求中被 --standard-light-gray-hover 替代 */
+    /* --active-item-hover-blue: #5c98e0; */ /* 此变量在当前需求中被 --primary-dark-blue-hover 替代 */
+    --standard-light-gray-hover: #e9ecef; /* 标准1: 未选中资源悬停时的浅灰色，也用于Tab和返回按钮悬停 */
 }
 
 body {
@@ -95,12 +98,10 @@ body {
     margin-top: 0.5rem; 
 }
 
-/* 所有模式选择页面的按钮 */
 .index-buttons .btn {
-    margin-bottom: 1rem;
+    margin-bottom: 1rem; 
 }
 
-/* 通用按钮样式 - 主要操作按钮 */
 .custom-btn {
     background-color: var(--primary-dark-blue);
     border-color: var(--primary-dark-blue);
@@ -116,7 +117,7 @@ body {
     margin-top: 1.5rem; 
 }
 
-.custom-btn.w-100 { /* 这个类Bootstrap已经提供了，但我们确保它生效 */
+.custom-btn.w-100 { 
     width: 100%;
 }
 
@@ -162,67 +163,74 @@ body {
     text-align: left;            
 }
 
-/* 导出/链接页面结果区的按钮样式调整为纵向排列 */
-#longShareCodeArea .btn,
-#shortShareCodeArea .btn {
-    /* .d-block and .w-100 are applied via HTML for Bootstrap */
-    margin-top: 0.5rem; /* 按钮之间的间距 */
-    margin-bottom: 0.5rem; /* 按钮之间的间距 */
-}
-#longShareCodeArea .btn:first-of-type, /* 第一个按钮顶部无需额外margin */
-#shortShareCodeArea .btn:first-of-type {
-    margin-top: 0.75rem; /* 相对于文本域的间距 */
+#actionButtonsArea .btn:first-of-type {
+    margin-top: 0.75rem; 
 }
 
-/* 导入页面的Tab样式 */
+/* 导入页面的Tab导航样式 */
 .nav-tabs .nav-link {
-    border-top-left-radius: var(--border-radius-elements); /* 调整圆角以匹配卡片 */
+    border-top-left-radius: var(--border-radius-elements);
     border-top-right-radius: var(--border-radius-elements);
-    color: var(--primary-dark-blue);
+    color: var(--primary-dark-blue); 
     font-weight: 500;
-    padding: 0.75rem 1.25rem; /* Tab按钮内边距 */
+    padding: 0.75rem 1.25rem; 
+    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out; 
 }
 .nav-tabs .nav-link.active {
     color: #fff; 
     background-color: var(--primary-dark-blue); 
-    border-color: var(--primary-dark-blue) var(--primary-dark-blue) var(--card-background); /* Active Tab 底边与内容区融合 */
+    border-color: var(--primary-dark-blue) var(--primary-dark-blue) var(--card-background); 
+}
+/* 修改：未选中的Tab按钮，鼠标悬停在上方，颜色与“标准1”一致 */
+.nav-tabs .nav-link:not(.active):hover {
+    background-color: var(--standard-light-gray-hover); /* 标准1的浅灰色 */
+    border-color: var(--standard-light-gray-hover) var(--standard-light-gray-hover) #dee2e6; /* 边框协调，底部用中性色 */
+    color: var(--primary-dark-blue); /* 文字颜色保持深蓝以确保对比 */
 }
 .nav-tabs {
-    border-bottom-color: var(--primary-dark-blue); /* Tab底部边框颜色 */
+    border-bottom-color: var(--primary-dark-blue); 
 }
 
 .tab-content {
-    border: 1px solid var(--primary-dark-blue); /* 内容区边框与Active Tab协调 */
+    border: 1px solid var(--primary-dark-blue); 
     border-top: 0;
     padding: 1.5rem 1.25rem; 
     border-bottom-left-radius: var(--border-radius-elements);
     border-bottom-right-radius: var(--border-radius-elements);
     background-color: var(--card-background); 
-    margin-bottom: 1rem; /* Tab内容区与下方按钮的间距 */
+    margin-bottom: 1rem; 
 }
 
 /* 公共资源列表项样式 */
 .public-share-item {
     cursor: pointer;
     padding: 0.75rem 1rem;
-    border: 1px solid #e0e0e0; /* 稍微深一点的边框 */
+    border: 1px solid #e0e0e0;
     border-radius: var(--border-radius-elements); 
     margin-bottom: 0.5rem;
-    background-color: #f8f9fa;
-    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+    background-color: #f8f9fa; 
+    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
 }
-.public-share-item:hover {
-    background-color: #e9ecef;
-    border-color: #d0d0d0;
+/* 未选中资源，鼠标悬停变浅灰色 (“标准1”) */
+.public-share-item:not(.active):hover {
+    background-color: var(--standard-light-gray-hover); 
+    border-color: #d0d0d0; /* 边框可略深于背景 */
 }
-.public-share-item.active { /* 选中项的样式 */
-    background-color: var(--primary-dark-blue-hover); /* 用主题悬停色 */
-    color: #fff;
-    border-color: var(--primary-dark-blue);
+/* 修改：已选中的资源，未悬停时，颜色与“开始导入”按钮默认背景色一致 */
+.public-share-item.active { 
+    background-color: var(--primary-dark-blue); 
+    color: #fff; 
+    border-color: var(--primary-dark-blue); 
 }
 .public-share-item.active .share-name,
 .public-share-item.active .share-timestamp {
-    color: #fff; /* 选中项内部文字颜色 */
+    color: #fff; /* 确保内部文字白色 */
+}
+/* 修改：已选中的资源，鼠标悬停时，颜色与鼠标悬停在“开始导入”按钮上方时的颜色一致 */
+.public-share-item.active:hover {
+    background-color: var(--primary-dark-blue-hover); 
+    border-color: var(--primary-dark-blue-hover); 
+    /* 文字颜色已由 .public-share-item.active 设为白色，悬停时保持 */
 }
 
 .public-share-item .share-name {
@@ -230,22 +238,36 @@ body {
     color: var(--primary-dark-blue); 
     display: block; 
     margin-bottom: 0.25rem;
-    font-size: 0.95rem; /* 调整字体大小 */
+    font-size: 0.95rem;
+    transition: color 0.15s ease-in-out; 
 }
 .public-share-item .share-timestamp {
     font-size: 0.8em;
-    color: #555; /* 时间戳文字颜色 */
+    color: #555; 
+    transition: color 0.15s ease-in-out; 
 }
 #publicSharesListContainer { 
-    max-height: 280px; /* 增加列表最大高度 */
+    max-height: 280px;
     overflow-y: auto;
     margin-bottom: 1rem;
     border: 1px solid #dee2e6;
     padding: 0.75rem; 
     border-radius: var(--border-radius-elements);
-    background-color: #fff; /* 列表容器背景，使其与输入框等协调 */
+    background-color: #fff; 
 }
 
+/* 修改：“返回首页”和“返回用户首页”等按钮的悬停效果，颜色与“标准1”一致 */
+/* 选择器针对具体的按钮实例或其容器，以避免不必要的全局覆盖 */
+.content-card .btn.btn-sm.btn-outline-secondary:hover,
+.container.main-container > .content-card .btn.btn-sm.btn-outline-secondary:hover, /* admin_login.html */
+.navbar-dark .navbar-nav .btn.btn-sm.btn-outline-light:hover, /* admin_dashboard.html */
+.navbar-dark .navbar-nav .btn.btn-sm.btn-outline-info:hover { /* admin_dashboard.html */
+    background-color: var(--standard-light-gray-hover) !important; 
+    border-color: var(--standard-light-gray-hover) !important; /* 边框颜色也统一为浅灰 */
+    color: var(--primary-dark-blue) !important; /* 文字颜色改为深蓝，确保在浅灰背景上的对比度 */
+}
+
+/* 响应式调整 */
 @media (max-width: 768px) {
     body {
         padding: 10px; 
@@ -258,18 +280,20 @@ body {
         font-size: 1.5rem; 
         margin-bottom: 1.5rem;
     }
-    .form-control, .custom-btn, .btn-secondary { 
+    .form-control, .custom-btn, .btn { 
         font-size: 0.95rem; 
-        padding: 0.8rem 1rem; 
+        padding-top: 0.8rem; 
+        padding-bottom: 0.8rem;
     }
-    .custom-btn.w-100 { 
-        padding: 0.8rem 1rem;
+    .custom-btn, .btn.custom-btn { 
+         padding-left: 1rem;
+         padding-right: 1rem;
     }
     .form-group, .mb-3 {
         margin-bottom: 1.25rem !important;
     }
     .nav-tabs .nav-link {
-        padding: 0.6rem 1rem; /* 调整小屏幕Tab按钮内边距 */
+        padding: 0.6rem 1rem; 
         font-size: 0.9rem;
     }
     .tab-content {
@@ -288,15 +312,14 @@ body {
     .form-label {
         font-size: 0.9rem;
     }
-    .form-control, .custom-btn, .btn-secondary { 
+    .form-control, .custom-btn, .btn { 
         font-size: 0.9rem;
     }
     .nav-tabs .nav-link {
         font-size: 0.85rem;
         padding: 0.5rem 0.75rem;
     }
-    /* 确保小屏幕按钮内的SVG图标不会过大 */
-    .custom-btn svg, .btn-secondary svg {
+    .custom-btn svg, .btn svg { 
         width: 1em;
         height: 1em;
     }

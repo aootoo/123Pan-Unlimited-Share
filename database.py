@@ -109,8 +109,8 @@ class Pan123Database:
                 rootFolderName,
                 bool(visibleFlag) if visibleFlag is not None else None, # 不知道为什么，从数据库里读出来的不是bool? 还要额外转一下
                 shareCode,
-                timeStamp
-                ))
+                timeStamp 
+            ))
         return result
 
     def queryName(self, rootFolderName:str): # 主要用于 telegram_spider 检查重名
@@ -139,9 +139,10 @@ class Pan123Database:
             result.append((
                 rootFolderName,
                 shareCode,
-                bool(visibleFlag) if visibleFlag is not None else None, # 不知道为什么，从数据库里读出来的不是bool? 还要额外转一下 
+                bool(visibleFlag) if visibleFlag is not None else None # 不知道为什么，从数据库里读出来的不是bool? 还要额外转一下 
             ))
-        if result:
+        
+        if len(result):
             if self.debug:
                 print(f"通过 codeHash '{codeHash}' 查询到数据: rootFolderName='{result[0]}', visibleFlag={result[2]}")
             return result # 返回 (rootFolderName, shareCode, visibleFlag)

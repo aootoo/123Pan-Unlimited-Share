@@ -81,7 +81,7 @@ def _handle_database_storage(db_instance, code_hash, root_folder_name_cleaned, v
 
     if existing_entry:
         message_log.append(f"数据库中已存在具有相同内容的分享 (Hash: {code_hash[:8]}...)。")
-        existing_code_hash, existing_root_folder_name, existing_visible_flag, existing_share_code, existing_timestamp = existing_entry
+        existing_code_hash, existing_root_folder_name, existing_visible_flag, existing_share_code, existing_timestamp = existing_entry[0]
         
         # 核心覆写逻辑：
         # 1. 如果现有的是私密 (False)，新请求是共享计划 (is_share_project_request is True, 对应 visible_flag=None) -> 删除旧的，插入新的
@@ -90,7 +90,7 @@ def _handle_database_storage(db_instance, code_hash, root_folder_name_cleaned, v
         # 4. 如果新旧 visible_flag 一致 -> 无需操作，短码有效
         # 5. 其他情况（如从公共降为私密）-> 通常不允许，或提示错误
 
-        if is_share_project_request and bool(existing_visible_flag) is False: # 私密升级到共享计划
+        if is_share_project_request and existing_visible_flag is False: # 私密升级到共享计划
             message_log.append(f"检测到私密分享 (原名: {existing_root_folder_name}) 将升级为公共分享 (待审核，新名: {root_folder_name_cleaned})。")
             if db_instance.deleteData(code_hash):
                 message_log.append("原私密分享记录已删除。")
@@ -102,22 +102,21 @@ def _handle_database_storage(db_instance, code_hash, root_folder_name_cleaned, v
             else:
                 message_log.append("错误：尝试删除旧私密分享记录失败。")
         
-        elif bool(existing_visible_flag) == bool(visible_flag) and bool(existing_visible_flag) is not None and bool(visible_flag) is not None: # visibleFlag 都不是 None 且值相同 （处理True==True, False==False的情况）
+        elif existing_visible_flag == visible_flag and existing_visible_flag is not None and visible_flag is not None: # visibleFlag 都不是 None 且值相同 （处理True==True, False==False的情况）
             operation_successful = True
-            message_log.append(f"数据库中已存在完全相同的记录 (名称: {existing_root_folder_name}, 可见性: {bool(existing_visible_flag)})。短分享码有效。")
-        elif bool(existing_visible_flag) is None and bool(visible_flag) is None: # 两者都是 None
+            message_log.append(f"数据库中已存在完全相同的记录 (名称: {existing_root_folder_name}, 可见性: {existing_visible_flag})。短分享码有效。")
+        elif existing_visible_flag is None and visible_flag is None: # 两者都是 None
             operation_successful = True
             message_log.append(f"数据库中已存在待审核的记录 (名称: {existing_root_folder_name})。短分享码有效。")
         
         else: # 其他类型的冲突 （例如 公开->私密，待审核->私密，已审核公开->待审核公开 等）
-            message_log.append(f"数据库中已存在此分享，但具有不同的可见性/状态 (库中: {bool(existing_visible_flag)}, 请求: {bool(visible_flag)})。")
+            message_log.append(f"数据库中已存在此分享，但具有不同的可见性/状态 (库中: {existing_visible_flag}, 请求: {visible_flag})。")
             message_log.append("为避免冲突或降级，本次未覆写数据库记录。您仍然可以使用查询到的短分享码。")
             operation_successful = True 
             
     else: # 数据库中不存在此 code_hash
         # 在这里，visible_flag 可能是 True, False, 或 None
-        # bool(None) is False，这不影响插入，因为 None 本身就是一种有效状态
-        final_visible_flag_for_insert = None if is_share_project_request else (False if bool(visible_flag) is False else bool(visible_flag))
+        final_visible_flag_for_insert = None if is_share_project_request else (False if visible_flag is False else visible_flag)
 
         if db_instance.insertData(code_hash, root_folder_name_cleaned, final_visible_flag_for_insert, share_code_b64):
             operation_successful = True
@@ -295,7 +294,8 @@ def api_import():
                 if not share_data_tuple:
                     yield f"{json.dumps({'isFinish': False, 'message': '短分享码无效或未在数据库中找到。'})}\n"
                     return
-                actual_root_folder_name_to_import, actual_base64_data_to_import, _ = share_data_tuple
+                # 提取元组中的数据 （有且仅有一个元素）
+                actual_root_folder_name_to_import, actual_base64_data_to_import, _ = share_data_tuple[0]
                 yield f"{json.dumps({'isFinish': None, 'message': f'获取数据成功，将导入为：{actual_root_folder_name_to_import}'})}\n"
             
             else: 
