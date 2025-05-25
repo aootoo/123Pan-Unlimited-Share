@@ -1,37 +1,37 @@
 /* static/css/style.css */
 
 :root {
-    --background-blue: #e6f7ff; /* 更清澈的浅蓝色背景 */
-    --card-background: rgba(255, 255, 255, 0.9); /* 卡片背景，轻微透明以配合高斯模糊 */
-    --primary-dark-blue: #0056b3; /* 深蓝色按钮基色 */
-    --primary-dark-blue-hover: #004494; /* 深蓝色按钮悬停色 */
-    --button-active-green: #198754; /* 按钮按下时的绿色 (Bootstrap success) */
-    --button-active-green-border: #146c43; /* 按钮按下时绿色边框 */
-    --button-active-green-shadow: rgba(25, 135, 84, 0.3); /* 按钮按下时绿色阴影 */
+    --background-blue: #e6f7ff; 
+    --card-background: rgba(255, 255, 255, 0.9); 
+    --primary-dark-blue: #0056b3; 
+    --primary-dark-blue-hover: #004494; 
+    --button-active-green: #198754; 
+    --button-active-green-border: #146c43; 
+    --button-active-green-shadow: rgba(25, 135, 84, 0.3); 
     --text-color: #333;
-    --border-color: #b0dfff; /* 卡片和输入框边框颜色，与背景协调 */
-    --card-shadow: 0 10px 30px rgba(0, 70, 120, 0.15); /* 更柔和自然的阴影 */
+    --border-color: #b0dfff; 
+    --card-shadow: 0 10px 30px rgba(0, 70, 120, 0.15); 
     --input-focus-shadow: rgba(0, 86, 179, 0.25);
-    --border-radius-card: 20px; /* 更大的圆角 */
-    --border-radius-elements: 10px; /* 按钮和输入框的圆角 */
+    --border-radius-card: 20px; 
+    --border-radius-elements: 10px; 
 }
 
 body {
     background-color: var(--background-blue);
-    font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif; /* 更现代的字体栈 */
+    font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif; 
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 100vh;
     margin: 0;
-    padding: 15px; /* 页面边缘的内边距 */
-    box-sizing: border-box; /* 确保 padding 不会增加 body 总宽度 */
+    padding: 15px; 
+    box-sizing: border-box; 
     overflow-x: hidden;
 }
 
 .main-container {
     position: relative;
-    max-width: 650px; /* 卡片最大宽度略微增加 */
+    max-width: 650px; 
     width: 100%;
     padding: 0;
 }
@@ -42,62 +42,62 @@ body {
     left: -15px;
     right: -15px;
     bottom: -15px;
-    background-image: linear-gradient(to bottom right, var(--background-blue), #cceeff); /* 使用渐变作为模糊背景源 */
-    filter: blur(20px); /* 高斯模糊效果 */
+    background-image: linear-gradient(to bottom right, var(--background-blue), #cceeff); 
+    filter: blur(20px); 
     -webkit-filter: blur(20px);
-    border-radius: calc(var(--border-radius-card) + 5px); /* 比卡片稍大的圆角 */
+    border-radius: calc(var(--border-radius-card) + 5px); 
     z-index: 1;
     opacity: 0.8;
 }
 
 .content-card {
     background-color: var(--card-background);
-    padding: 35px 45px; /* 增加卡片内边距，确保元素不贴边 */
+    padding: 35px 45px; 
     border-radius: var(--border-radius-card);
     box-shadow: var(--card-shadow);
     position: relative;
     z-index: 2;
     border: 1px solid var(--border-color);
-    backdrop-filter: blur(5px); /* 轻微的背景模糊（如果浏览器支持且card-background有透明度） */
+    backdrop-filter: blur(5px); 
     -webkit-backdrop-filter: blur(5px);
 }
 
 .card-title {
     color: var(--primary-dark-blue);
-    font-weight: 700; /* 标题加粗 */
-    text-align: center; /* 标题居中 */
-    margin-bottom: 1.8rem; /* 标题与下方内容的间距 */
+    font-weight: 700; 
+    text-align: center; 
+    margin-bottom: 1.8rem; 
 }
 
 .form-label {
     font-weight: 500;
     color: var(--text-color);
-    margin-bottom: 0.75rem; /* 标签和输入框的间距 */
+    margin-bottom: 0.75rem; 
 }
 
 .form-control {
     border-radius: var(--border-radius-elements);
     border: 1px solid var(--border-color);
-    padding: 0.9rem 1.2rem; /* 增加输入框内边距 */
-    background-color: #fff; /* 确保输入框背景不透明 */
+    padding: 0.9rem 1.2rem; 
+    background-color: #fff; 
     transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
 }
 
 .form-control:focus {
     border-color: var(--primary-dark-blue);
     box-shadow: 0 0 0 0.25rem var(--input-focus-shadow);
-    background-color: #fff; /* 焦点时背景依旧为白色 */
+    background-color: #fff; 
 }
 
 .form-text {
     font-size: 0.875em;
     color: #555;
-    margin-top: 0.5rem; /* 辅助文本与输入框的间距 */
+    margin-top: 0.5rem; 
 }
 
 /* 所有模式选择页面的按钮 */
 .index-buttons .btn {
-    margin-bottom: 1rem; /* 按钮之间的垂直间距 */
+    margin-bottom: 1rem;
 }
 
 /* 通用按钮样式 - 主要操作按钮 */
@@ -105,7 +105,7 @@ body {
     background-color: var(--primary-dark-blue);
     border-color: var(--primary-dark-blue);
     color: white;
-    padding: 0.9rem 1.5rem; /* 按钮内边距 */
+    padding: 0.9rem 1.5rem; 
     font-size: 1.05rem;
     font-weight: 500;
     border-radius: var(--border-radius-elements);
@@ -116,7 +116,7 @@ body {
     margin-top: 1.5rem; 
 }
 
-.custom-btn.w-100 {
+.custom-btn.w-100 { /* 这个类Bootstrap已经提供了，但我们确保它生效 */
     width: 100%;
 }
 
@@ -142,73 +142,108 @@ body {
     padding: 1rem 1.25rem; 
 }
 
-.back-to-home {
-    display: inline-block; 
-    background-color: #6c757d; 
-    border-color: #6c757d;
-    color: white;
-    padding: 0.6rem 1rem;
-    font-size: 0.9rem;
-    margin-bottom: 1.5rem; 
-    border-radius: var(--border-radius-elements);
-}
-.back-to-home:hover {
-    background-color: #5a6268;
-    border-color: #545b62;
-    color: white;
-}
-
 .form-group, .mb-3 { 
     margin-bottom: 1.75rem !important; 
 }
 
-input[type="file"].form-control {
-    padding-top: 0.5rem; 
-    padding-bottom: 0.5rem;
+.console-output {
+    background-color: #f0f0f0; 
+    color: #333; 
+    border: 1px solid var(--border-color, #ced4da);
+    padding: 15px;
+    border-radius: var(--border-radius-elements, 10px);
+    white-space: pre-wrap;       
+    word-break: break-all;       
+    max-height: 400px;           
+    overflow-y: auto;            
+    font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace; 
+    font-size: 0.85em;           
+    line-height: 1.5;
+    text-align: left;            
 }
 
-input[type="file"]::file-selector-button {
-    padding: 0.7rem 1rem; 
-    margin: -0.5rem -1.2rem; 
-    margin-inline-end: 1.2rem;
-    color: #fff;
-    background-color: var(--primary-dark-blue);
-    border-color: var(--primary-dark-blue);
-    border-radius: var(--border-radius-elements) 0 0 var(--border-radius-elements); 
-    border: 0;
-    transition: background-color .15s ease-in-out,border-color .15s ease-in-out;
+/* 导出/链接页面结果区的按钮样式调整为纵向排列 */
+#longShareCodeArea .btn,
+#shortShareCodeArea .btn {
+    /* .d-block and .w-100 are applied via HTML for Bootstrap */
+    margin-top: 0.5rem; /* 按钮之间的间距 */
+    margin-bottom: 0.5rem; /* 按钮之间的间距 */
+}
+#longShareCodeArea .btn:first-of-type, /* 第一个按钮顶部无需额外margin */
+#shortShareCodeArea .btn:first-of-type {
+    margin-top: 0.75rem; /* 相对于文本域的间距 */
+}
+
+/* 导入页面的Tab样式 */
+.nav-tabs .nav-link {
+    border-top-left-radius: var(--border-radius-elements); /* 调整圆角以匹配卡片 */
+    border-top-right-radius: var(--border-radius-elements);
+    color: var(--primary-dark-blue);
     font-weight: 500;
+    padding: 0.75rem 1.25rem; /* Tab按钮内边距 */
+}
+.nav-tabs .nav-link.active {
+    color: #fff; 
+    background-color: var(--primary-dark-blue); 
+    border-color: var(--primary-dark-blue) var(--primary-dark-blue) var(--card-background); /* Active Tab 底边与内容区融合 */
+}
+.nav-tabs {
+    border-bottom-color: var(--primary-dark-blue); /* Tab底部边框颜色 */
 }
 
-input[type="file"]::file-selector-button:hover {
-    background-color: var(--primary-dark-blue-hover);
-    border-color: var(--primary-dark-blue-hover);
+.tab-content {
+    border: 1px solid var(--primary-dark-blue); /* 内容区边框与Active Tab协调 */
+    border-top: 0;
+    padding: 1.5rem 1.25rem; 
+    border-bottom-left-radius: var(--border-radius-elements);
+    border-bottom-right-radius: var(--border-radius-elements);
+    background-color: var(--card-background); 
+    margin-bottom: 1rem; /* Tab内容区与下方按钮的间距 */
 }
 
-.result-message {
-    font-size: 1.2rem;
-    color: var(--text-color);
-    margin-bottom: 1.5rem;
+/* 公共资源列表项样式 */
+.public-share-item {
+    cursor: pointer;
+    padding: 0.75rem 1rem;
+    border: 1px solid #e0e0e0; /* 稍微深一点的边框 */
+    border-radius: var(--border-radius-elements); 
+    margin-bottom: 0.5rem;
+    background-color: #f8f9fa;
+    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+}
+.public-share-item:hover {
+    background-color: #e9ecef;
+    border-color: #d0d0d0;
+}
+.public-share-item.active { /* 选中项的样式 */
+    background-color: var(--primary-dark-blue-hover); /* 用主题悬停色 */
+    color: #fff;
+    border-color: var(--primary-dark-blue);
+}
+.public-share-item.active .share-name,
+.public-share-item.active .share-timestamp {
+    color: #fff; /* 选中项内部文字颜色 */
 }
 
-.download-button-container {
-    margin: 2rem 0; 
+.public-share-item .share-name {
+    font-weight: 500;
+    color: var(--primary-dark-blue); 
+    display: block; 
+    margin-bottom: 0.25rem;
+    font-size: 0.95rem; /* 调整字体大小 */
 }
-
-/* Styles for the Download and Copy button toolbar */
-.share-actions-toolbar {
-    margin-top: 0.75rem; /* Adjusted top margin for this specific toolbar */
+.public-share-item .share-timestamp {
+    font-size: 0.8em;
+    color: #555; /* 时间戳文字颜色 */
 }
-
-.share-actions-toolbar .btn {
-    padding: 0.9rem 1.5rem; /* Match custom-btn padding for consistent height */
-    font-size: 1.05rem;     /* Match custom-btn font-size for consistent height */
-    /* flex-fill class in HTML will handle equal width distribution */
-    margin-top: 0; /* Override general .custom-btn or .btn margin-top if any was causing issues here */
-}
-/* Ensure icons within these buttons are vertically centered */
-.share-actions-toolbar .btn svg {
-    vertical-align: middle; /* Helps if text and icon alignment is off */
+#publicSharesListContainer { 
+    max-height: 280px; /* 增加列表最大高度 */
+    overflow-y: auto;
+    margin-bottom: 1rem;
+    border: 1px solid #dee2e6;
+    padding: 0.75rem; 
+    border-radius: var(--border-radius-elements);
+    background-color: #fff; /* 列表容器背景，使其与输入框等协调 */
 }
 
 @media (max-width: 768px) {
@@ -230,19 +265,15 @@ input[type="file"]::file-selector-button:hover {
     .custom-btn.w-100 { 
         padding: 0.8rem 1rem;
     }
-    /* Adjust share-actions-toolbar buttons for medium screens */
-    .share-actions-toolbar .btn {
-        font-size: 0.90rem; /* Slightly smaller font for medium screens if needed*/
-        padding: 0.8rem 1rem; /* Adjust padding accordingly */
-    }
-
     .form-group, .mb-3 {
         margin-bottom: 1.25rem !important;
     }
-    input[type="file"]::file-selector-button {
-        padding: 0.6rem 0.8rem;
-        margin: -0.4rem -1rem;
-        margin-inline-end: 1rem;
+    .nav-tabs .nav-link {
+        padding: 0.6rem 1rem; /* 调整小屏幕Tab按钮内边距 */
+        font-size: 0.9rem;
+    }
+    .tab-content {
+        padding: 1rem 0.75rem;
     }
 }
 
@@ -260,44 +291,13 @@ input[type="file"]::file-selector-button:hover {
     .form-control, .custom-btn, .btn-secondary { 
         font-size: 0.9rem;
     }
-    /* Stack buttons in share-actions-toolbar on very small screens */
-    .share-actions-toolbar {
-        flex-direction: column;
+    .nav-tabs .nav-link {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.75rem;
     }
-    .share-actions-toolbar .btn {
-        width: 100%; /* Make buttons full width when stacked */
-        margin-bottom: 0.5rem; /* Add some space between stacked buttons */
+    /* 确保小屏幕按钮内的SVG图标不会过大 */
+    .custom-btn svg, .btn-secondary svg {
+        width: 1em;
+        height: 1em;
     }
-    .share-actions-toolbar .btn:last-child {
-        margin-bottom: 0; /* No margin for the last button */
-    }
-}
-
-.console-output {
-    background-color: #f0f0f0; 
-    color: #333; 
-    border: 1px solid var(--border-color, #ced4da);
-    padding: 15px;
-    border-radius: var(--border-radius-elements, 10px);
-    white-space: pre-wrap;       
-    word-break: break-all;       
-    max-height: 400px;           
-    overflow-y: auto;            
-    font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace; 
-    font-size: 0.85em;           
-    line-height: 1.5;
-    text-align: left;            
-}
-
-.result-message {
-    font-size: 1.1rem; 
-    margin-bottom: 1.25rem;
-}
-.result-message.text-danger {
-    font-weight: 500; 
-}
-
-.download-button-container { 
-    margin-top: 1.5rem;
-    margin-bottom: 1.5rem;
 }

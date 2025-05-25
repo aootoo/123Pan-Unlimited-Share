@@ -9,22 +9,52 @@
     <style>
         .public-share-item {
             cursor: pointer;
-            padding: 0.5rem 0.75rem;
+            padding: 0.75rem 1rem; /* 增加内边距 */
             border: 1px solid #eee;
-            border-radius: 0.25rem;
+            border-radius: 0.375rem; /* Bootstrap .rounded-1 */
             margin-bottom: 0.5rem;
             background-color: #f8f9fa;
+            transition: background-color 0.15s ease-in-out;
         }
         .public-share-item:hover {
             background-color: #e9ecef;
         }
-        #publicSharesListContainer { /* Renamed for clarity */
-            max-height: 200px;
+        .public-share-item .share-name {
+            font-weight: 500;
+            color: var(--primary-dark-blue); /* 使用主题色 */
+            display: block; /* 块级显示占一行 */
+            margin-bottom: 0.25rem;
+        }
+        .public-share-item .share-timestamp {
+            font-size: 0.8em;
+            color: #6c757d; /* text-muted color */
+        }
+        #publicSharesListContainer {
+            max-height: 250px; /* 稍微增加高度 */
             overflow-y: auto;
             margin-bottom: 1rem;
             border: 1px solid #dee2e6;
-            padding: 0.5rem;
+            padding: 0.75rem; /* 增加内边距 */
             border-radius: 0.375rem;
+        }
+        .nav-tabs .nav-link {
+            border-top-left-radius: 0.375rem;
+            border-top-right-radius: 0.375rem;
+            color: var(--primary-dark-blue); /* Tab文字颜色 */
+            font-weight: 500;
+        }
+        .nav-tabs .nav-link.active {
+            color: #fff; /* Active Tab 文字颜色 */
+            background-color: var(--primary-dark-blue); /* Active Tab 背景颜色 */
+            border-color: var(--primary-dark-blue) var(--primary-dark-blue) #fff;
+        }
+        .tab-content {
+            border: 1px solid #dee2e6;
+            border-top: 0;
+            padding: 1.5rem 1rem; /* Tab 内容区域内边距 */
+            border-bottom-left-radius: 0.375rem;
+            border-bottom-right-radius: 0.375rem;
+            background-color: #fff; /* Tab 内容区背景 */
         }
     </style>
 </head>
@@ -48,46 +78,81 @@
                     <input type="password" class="form-control" id="password" name="password" required>
                     <div class="form-text">123云盘的登录密码（担心隐私风险? 推荐 <a href="https://github.com/realcwj/123Pan-Unlimited-Share?tab=readme-ov-file#%E6%8E%A8%E8%8D%90%E6%9C%AC%E5%9C%B0%E9%83%A8%E7%BD%B2%E5%8F%AF%E8%A7%86%E5%8C%96%E7%95%8C%E9%9D%A2%E7%BD%91%E9%A1%B5" target="_blank">本地部署</a>）</div>
                 </div>
-                <div class="mb-3">
-                    <label for="shareFile" class="form-label">选择 .123share 文件 (可选)</label>
-                    <input type="file" class="form-control" id="shareFile" name="shareFile" accept=".123share">
-                    <div class="form-text">选择文件将自动填充下方的分享码和根目录名。</div>
-                </div>
-                <div class="mb-3">
-                    <label for="base64Data" class="form-label">分享码</label>
-                    <textarea class="form-control" id="base64Data" name="base64Data" rows="3" required placeholder="粘贴分享码内容或通过上方选择文件自动填充"></textarea>
-                    <div class="form-text">即 <code>*.123share</code> 文件的内容。</div>
-                </div>
-                <div class="mb-3">
-                    <label for="rootFolderName" class="form-label">根目录名</label>
-                    <input type="text" class="form-control" id="rootFolderName" name="rootFolderName" required placeholder="例如: 导入的电影合集 (选择文件可自动填充)">
-                    <div class="form-text">即导入时在123云盘中创建的文件夹名。</div>
-                </div>
                 
-                <hr>
-                <p><strong>或从公共资源库选择:</strong></p>
-                <div class="mb-3">
-                    <input type="text" class="form-control" id="publicShareSearch" placeholder="搜索公共资源...">
-                </div>
-                <div id="publicSharesListContainer">
-                    <div id="publicSharesListActual">
-                        <p class="text-muted text-center">正在加载公共资源列表...</p>
+                <!-- Tab Navigation -->
+                <ul class="nav nav-tabs mt-4 mb-0" id="importTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="public-repo-tab" data-bs-toggle="tab" data-bs-target="#publicRepoContent" type="button" role="tab" aria-controls="publicRepoContent" aria-selected="true">从公共资源库</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="short-code-tab" data-bs-toggle="tab" data-bs-target="#shortCodeContent" type="button" role="tab" aria-controls="shortCodeContent" aria-selected="false">从短分享码</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="long-code-tab" data-bs-toggle="tab" data-bs-target="#longCodeContent" type="button" role="tab" aria-controls="longCodeContent" aria-selected="false">从长分享码</button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content" id="importTabsContent">
+                    <!-- Public Repo Tab Pane -->
+                    <div class="tab-pane fade show active" id="publicRepoContent" role="tabpanel" aria-labelledby="public-repo-tab">
+                        <p class="mt-2"><strong>从公共资源库选择:</strong></p>
+                        <div class="mb-3">
+                            <input type="text" class="form-control" id="publicShareSearch" placeholder="搜索公共资源名称...">
+                        </div>
+                        <div id="publicSharesListContainer">
+                            <div id="publicSharesListActual">
+                                <p class="text-muted text-center">正在加载公共资源列表...</p>
+                            </div>
+                        </div>
+                        <small class="form-text">点击上方列表中的资源名称即可选中，然后点击下方“开始导入”按钮。</small>
+                        <input type="hidden" id="selectedPublicCodeHash" name="selectedPublicCodeHash">
+                    </div>
+
+                    <!-- Short Code Tab Pane -->
+                    <div class="tab-pane fade" id="shortCodeContent" role="tabpanel" aria-labelledby="short-code-tab">
+                        <div class="mb-3 mt-3">
+                            <label for="shortCodeInput" class="form-label">短分享码</label>
+                            <input type="text" class="form-control" id="shortCodeInput" name="shortCodeInput" placeholder="粘贴短分享码">
+                            <div class="form-text">由本工具生成的简短分享代码。</div>
+                        </div>
+                    </div>
+
+                    <!-- Long Code Tab Pane -->
+                    <div class="tab-pane fade" id="longCodeContent" role="tabpanel" aria-labelledby="long-code-tab">
+                        <div class="mb-3 mt-3">
+                            <label for="longBase64DataInput" class="form-label">长分享码 (Base64)</label>
+                            <textarea class="form-control" id="longBase64DataInput" name="longBase64DataInput" rows="4" placeholder="粘贴完整的分享码内容 (通常是.123share文件里的内容)"></textarea>
+                            <div class="form-text">即 <code>*.123share</code> 文件的内容。</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="longRootFolderNameInput" class="form-label">根目录名</label>
+                            <input type="text" class="form-control" id="longRootFolderNameInput" name="longRootFolderNameInput" placeholder="例如: 我导入的电影合集">
+                            <div class="form-text">导入时在123云盘中创建的文件夹名。</div>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="importShareProject" name="importShareProject">
+                            <label class="form-check-label" for="importShareProject">将此长分享码加入资源共享计划</label>
+                            <div class="form-text">勾选后，您提供的长分享码和根目录名将被存入数据库，并生成一个短分享码供他人使用。资源将提交审核，通过后公开可见。</div>
+                        </div>
                     </div>
                 </div>
-
-                <div class="form-text">提示：导入文件数量较多时，速度会比较慢，请耐心等待。</div>
-                <button type="submit" class="btn btn-primary custom-btn w-100 mt-3">开始导入</button> </form>
+                
+                <div class="form-text mt-3">提示：导入文件数量较多时，速度会比较慢，请耐心等待。</div>
+                <button type="submit" class="btn btn-primary custom-btn w-100 mt-3">开始导入</button> 
+            </form>
 
             <div id="resultArea" class="mt-4" style="display: none;">
-                <h5>操作日志:</h5>
+                <h5 class="mb-3">当前状态:</h5>
                 <div id="statusMessage" class="alert"></div>
+                <h5 class="mt-3">操作日志:</h5>
                 <pre id="logOutput" class="console-output p-3 rounded" style="max-height: 300px; overflow-y: auto;"></pre>
             </div>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Cookie functions
+        // Cookie functions (remains the same)
         function setCookie(name, value, days) {
             let expires = "";
             if (days) {
@@ -114,13 +179,23 @@
             const resultArea = document.getElementById('resultArea');
             const statusMessage = document.getElementById('statusMessage');
             const logOutput = document.getElementById('logOutput');
-            const shareFileInput = document.getElementById('shareFile');
-            const base64DataInput = document.getElementById('base64Data');
-            const rootFolderNameInput = document.getElementById('rootFolderName');
             
+            // Tab related elements
+            const publicRepoTab = document.getElementById('public-repo-tab');
+            const shortCodeTab = document.getElementById('short-code-tab');
+            const longCodeTab = document.getElementById('long-code-tab');
+            const selectedPublicCodeHashInput = document.getElementById('selectedPublicCodeHash');
+
             const publicSharesListDiv = document.getElementById('publicSharesListActual');
             const publicShareSearchInput = document.getElementById('publicShareSearch');
             let allPublicShares = [];
+            let currentActiveTab = 'publicRepoContent'; // Default active tab ID
+
+            // Store references to inputs in each tab
+            const shortCodeInput = document.getElementById('shortCodeInput');
+            const longBase64DataInput = document.getElementById('longBase64DataInput');
+            const longRootFolderNameInput = document.getElementById('longRootFolderNameInput');
+            const importShareProjectCheckbox = document.getElementById('importShareProject');
 
             // Load credentials from cookies
             const savedUsername = getCookie('username');
@@ -132,99 +207,79 @@
                 document.getElementById('password').value = savedPassword;
             }
 
-            shareFileInput.addEventListener('change', function(event) {
-                const file = event.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        try {
-                            // content is ArrayBuffer from readAsArrayBuffer
-                            // The server expects a URL-safe base64 string.
-                            // Pan123.py importFiles expects bytes, web.py api_import decodes the string.
-                            // Here, we need to send a string that will be decoded by urlsafe_b64decode.
-                            // So, the string from here must be URL-safe base64.
-                            // Standard btoa will produce standard base64. We might need to make it URL-safe.
-                            // However, the backend `Pan123.py` `importFiles` takes `base64Data` (bytes) and calls `json.loads(base64.urlsafe_b64decode(base64Data))`.
-                            // `web.py` `api_import` does `base64.urlsafe_b64decode(base64_data_str.encode('utf-8'))`.
-                            // So, `base64_data_str` from the client must be a URL-safe base64 string.
-                            // `btoa` produces standard base64. We need to convert it.
-                            // Or, better, if the file content IS already base64 (as .123share implies), read it as text.
-
-                            const fr = new FileReader();
-                            fr.onload = function(evt) {
-                                // evt.target.result is the file content as a string
-                                // Assuming the .123share file directly contains the base64 string
-                                base64DataInput.value = evt.target.result.trim();
-                                let fileName = file.name;
-                                if (fileName.toLowerCase().endsWith('.123share')) {
-                                    rootFolderNameInput.value = fileName.substring(0, fileName.length - '.123share'.length);
-                                } else {
-                                    rootFolderNameInput.value = fileName;
-                                }
-                            };
-                            fr.onerror = function() {
-                                alert("读取文件内容为文本时出错: " + fr.error);
-                                base64DataInput.value = '';
-                                rootFolderNameInput.value = '';
-                            };
-                            fr.readAsText(file); // Read as text, assuming it's already base64 encoded string
-
-                        } catch (err) {
-                            console.error("Error processing file:", err);
-                            alert("处理文件失败: " + err.message);
-                            base64DataInput.value = '';
-                            rootFolderNameInput.value = '';
-                        }
-                    };
-                    reader.onerror = function() { // This outer reader is not really used if we switch to readAsText
-                        alert("选择文件时出错。");
-                        base64DataInput.value = '';
-                        rootFolderNameInput.value = '';
-                    };
-                    // Trigger the inner FileReader
-                    if (file) { // Check file again just in case
-                         const textReader = new FileReader();
-                         textReader.onload = function(e_text) {
-                            base64DataInput.value = e_text.target.result.trim();
-                            let fileName = file.name;
-                            if (fileName.toLowerCase().endsWith('.123share')) {
-                                rootFolderNameInput.value = fileName.substring(0, fileName.length - '.123share'.length);
-                            } else {
-                                rootFolderNameInput.value = fileName;
-                            }
-                         };
-                         textReader.onerror = function() {
-                            alert("读取文件内容失败: " + textReader.error);
-                            base64DataInput.value = '';
-                            rootFolderNameInput.value = '';
-                         };
-                         textReader.readAsText(file); // Read .123share file as text
+            // Listen to tab changes to set currentActiveTab
+            document.querySelectorAll('#importTabs button[data-bs-toggle="tab"]').forEach(tabEl => {
+                tabEl.addEventListener('shown.bs.tab', function (event) {
+                    currentActiveTab = event.target.getAttribute('aria-controls');
+                    // Clear inputs when switching tabs to avoid confusion
+                    if (currentActiveTab !== 'publicRepoContent') selectedPublicCodeHashInput.value = '';
+                    if (currentActiveTab !== 'shortCodeContent') shortCodeInput.value = '';
+                    if (currentActiveTab !== 'longCodeContent') {
+                        longBase64DataInput.value = '';
+                        longRootFolderNameInput.value = '';
+                        importShareProjectCheckbox.checked = false;
                     }
-                }
+                });
             });
 
             importForm.addEventListener('submit', async function (event) {
                 event.preventDefault();
                 resultArea.style.display = 'block';
-                logOutput.textContent = ''; // Clear previous logs
-                statusMessage.textContent = '';
-                statusMessage.className = 'alert'; // Reset class
+                logOutput.textContent = ''; 
+                statusMessage.textContent = '准备开始...';
+                statusMessage.className = 'alert alert-info'; 
 
                 const username = document.getElementById('username').value;
                 const password = document.getElementById('password').value;
-                const base64Data = base64DataInput.value;
-                const rootFolderName = rootFolderNameInput.value;
 
-                // Save credentials to cookies
                 setCookie('username', username, 30);
                 setCookie('password', password, 30);
 
-                const payload = {
+                let payload = {
                     username: username,
-                    password: password,
-                    base64Data: base64Data, // This should be the URL-safe base64 string
-                    rootFolderName: rootFolderName
+                    password: password
                 };
+
+                let formValid = true;
+
+                if (currentActiveTab === 'publicRepoContent') {
+                    if (!selectedPublicCodeHashInput.value) {
+                        statusMessage.textContent = '错误: 请先从公共资源库选择一项资源。';
+                        statusMessage.className = 'alert alert-danger';
+                        formValid = false;
+                    }
+                    payload.codeHash = selectedPublicCodeHashInput.value;
+                } else if (currentActiveTab === 'shortCodeContent') {
+                    if (!shortCodeInput.value.trim()) {
+                        statusMessage.textContent = '错误: 请输入短分享码。';
+                        statusMessage.className = 'alert alert-danger';
+                        shortCodeInput.focus();
+                        formValid = false;
+                    }
+                    payload.codeHash = shortCodeInput.value.trim();
+                } else if (currentActiveTab === 'longCodeContent') {
+                    if (!longBase64DataInput.value.trim()) {
+                        statusMessage.textContent = '错误: 请输入长分享码。';
+                        statusMessage.className = 'alert alert-danger';
+                        longBase64DataInput.focus();
+                        formValid = false;
+                    }
+                    if (!longRootFolderNameInput.value.trim()) {
+                        statusMessage.textContent = '错误: 请输入根目录名。';
+                        statusMessage.className = 'alert alert-danger';
+                        longRootFolderNameInput.focus();
+                        formValid = false;
+                    }
+                    payload.base64Data = longBase64DataInput.value.trim();
+                    payload.rootFolderName = longRootFolderNameInput.value.trim();
+                    payload.shareProject = importShareProjectCheckbox.checked;
+                } else {
+                     statusMessage.textContent = '错误: 未知的导入模式。';
+                     statusMessage.className = 'alert alert-danger';
+                     formValid = false;
+                }
+
+                if (!formValid) return;
 
                 try {
                     const response = await fetch("{{ url_for('api_import') }}", {
@@ -235,16 +290,21 @@
                         body: JSON.stringify(payload),
                     });
 
-                    if (!response.ok) {
+                    if (!response.ok && response.headers.get("content-type")?.includes("application/json")) {
                         const errorData = await response.json();
                         statusMessage.textContent = `错误: ${errorData.message || response.statusText}`;
-                        statusMessage.classList.add('alert-danger');
+                        statusMessage.className = 'alert alert-danger';
                         logOutput.textContent += `请求失败: ${errorData.message || response.statusText}\n`;
+                        return;
+                    } else if (!response.ok) {
+                        statusMessage.textContent = `服务器错误: ${response.status} ${response.statusText}`;
+                        statusMessage.className = 'alert alert-danger';
+                        logOutput.textContent += `服务器错误: ${response.status} ${response.statusText}\n`;
                         return;
                     }
                     
-                    statusMessage.textContent = "处理中...";
-                    statusMessage.classList.add('alert-info');
+                    statusMessage.textContent = "处理中，请稍候...";
+                    statusMessage.className = 'alert alert-info';
 
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder('utf-8');
@@ -256,56 +316,55 @@
                         
                         buffer += decoder.decode(value, { stream: true });
                         const lines = buffer.split('\n');
-                        buffer = lines.pop(); // Keep the last partial line for next read
+                        buffer = lines.pop(); 
 
                         for (const line of lines) {
                             if (line.trim() === '') continue;
                             try {
                                 const jsonData = JSON.parse(line);
-                                logOutput.textContent += `${jsonData.message}\n`;
-                                logOutput.scrollTop = logOutput.scrollHeight; // Auto-scroll
-
-                                if (jsonData.isFinish === true) {
-                                    statusMessage.textContent = `操作完成: ${jsonData.message}`;
-                                    statusMessage.classList.remove('alert-info', 'alert-danger');
-                                    statusMessage.classList.add('alert-success');
+                                if (jsonData.isFinish === null) {
+                                    logOutput.textContent += `${jsonData.message}\n`;
+                                    statusMessage.textContent = jsonData.message; 
+                                } else if (jsonData.isFinish === true) {
+                                    statusMessage.textContent = `导入成功: ${jsonData.message}`;
+                                    statusMessage.className = 'alert alert-success';
                                 } else if (jsonData.isFinish === false) {
                                     statusMessage.textContent = `操作失败: ${jsonData.message}`;
-                                    statusMessage.classList.remove('alert-info', 'alert-success');
-                                    statusMessage.classList.add('alert-danger');
+                                    statusMessage.className = 'alert alert-danger';
+                                    logOutput.textContent += `最终错误: ${jsonData.message}\n`;
                                 }
+                                logOutput.scrollTop = logOutput.scrollHeight; 
                             } catch (e) {
-                                console.error('Error parsing JSON line:', line, e);
+                                console.error('解析JSON行时出错:', line, e);
                                 logOutput.textContent += `错误: 无法解析流数据: ${line}\n`;
                             }
                         }
                     }
-                    // Process any remaining data in buffer
                     if (buffer.trim() !== '') {
                          try {
                             const jsonData = JSON.parse(buffer);
-                            logOutput.textContent += `${jsonData.message}\n`;
-                            logOutput.scrollTop = logOutput.scrollHeight;
-                             if (jsonData.isFinish === true) {
-                                statusMessage.textContent = `操作完成: ${jsonData.message}`;
-                                statusMessage.classList.remove('alert-info', 'alert-danger');
-                                statusMessage.classList.add('alert-success');
+                            if (jsonData.isFinish === null) {
+                                logOutput.textContent += `${jsonData.message}\n`;
+                                statusMessage.textContent = jsonData.message;
+                            } else if (jsonData.isFinish === true) {
+                                statusMessage.textContent = `导入成功: ${jsonData.message}`;
+                                statusMessage.className = 'alert alert-success';
                             } else if (jsonData.isFinish === false) {
                                 statusMessage.textContent = `操作失败: ${jsonData.message}`;
-                                statusMessage.classList.remove('alert-info', 'alert-success');
-                                statusMessage.classList.add('alert-danger');
+                                statusMessage.className = 'alert alert-danger';
+                                logOutput.textContent += `最终错误: ${jsonData.message}\n`;
                             }
+                             logOutput.scrollTop = logOutput.scrollHeight;
                         } catch (e) {
-                            console.error('Error parsing final JSON buffer:', buffer, e);
+                            console.error('解析最终JSON缓冲区时出错:', buffer, e);
                             logOutput.textContent += `错误: 无法解析末尾流数据: ${buffer}\n`;
                         }
                     }
 
                 } catch (error) {
-                    console.error('Fetch error:', error);
+                    console.error('Fetch请求错误:', error);
                     statusMessage.textContent = `请求发送失败: ${error.message}`;
-                    statusMessage.classList.remove('alert-info', 'alert-success');
-                    statusMessage.classList.add('alert-danger');
+                    statusMessage.className = 'alert alert-danger';
                     logOutput.textContent += `请求发送失败: ${error.message}\n`;
                 }
             });
@@ -313,41 +372,67 @@
             // --- Public Shares ---
             async function fetchPublicShares() {
                 try {
-                    const response = await fetch("{{ url_for('list_public_shares') }}");
+                    const response = await fetch("{{ url_for('list_public_shares_from_db') }}");
                     if (!response.ok) {
                         publicSharesListDiv.innerHTML = '<p class="text-danger text-center">加载公共资源列表失败。</p>';
                         return;
                     }
                     const data = await response.json();
                     if (data.success && data.files && data.files.length > 0) {
-                        allPublicShares = data.files;
+                        allPublicShares = data.files; // files: [{name, codeHash, timestamp}, ...]
                         renderPublicShares(allPublicShares);
-                    } else if (data.success && data.files.length === 0) {
+                    } else if (data.success && (!data.files || data.files.length === 0)) {
                          publicSharesListDiv.innerHTML = '<p class="text-muted text-center">暂无公共资源。</p>';
-                    }
-                    else {
+                    } else {
                         publicSharesListDiv.innerHTML = `<p class="text-danger text-center">加载公共资源列表失败: ${data.message || '未知错误'}</p>`;
                     }
                 } catch (error) {
-                    console.error("Error fetching public shares:", error);
+                    console.error("获取公共资源时出错:", error);
                     publicSharesListDiv.innerHTML = '<p class="text-danger text-center">加载公共资源列表时发生网络错误。</p>';
                 }
             }
 
             function renderPublicShares(shares) {
-                publicSharesListDiv.innerHTML = ''; // Clear current list
-                if (shares.length === 0) {
+                publicSharesListDiv.innerHTML = ''; 
+                if (shares.length === 0 && publicShareSearchInput.value) {
                     publicSharesListDiv.innerHTML = '<p class="text-muted text-center">沒有匹配的公共资源。</p>';
                     return;
+                } else if (shares.length === 0) {
+                    publicSharesListDiv.innerHTML = '<p class="text-muted text-center">暂无公共资源。</p>';
+                    return;
                 }
+
                 shares.forEach(share => {
                     const item = document.createElement('div');
                     item.classList.add('public-share-item');
-                    item.textContent = share.name; // Display the name (filename without extension)
-                    item.dataset.filename = share.filename; // Store full filename
-                    item.addEventListener('click', async function() {
-                        // 当点击公共资源项时，确保传递的是未编码的文件名
-                        await loadPublicShareContent(share.filename);
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.classList.add('share-name');
+                    nameSpan.textContent = share.name;
+                    item.appendChild(nameSpan);
+
+                    const tsSpan = document.createElement('span');
+                    tsSpan.classList.add('share-timestamp');
+                    // 格式化时间戳 (简单示例，可以根据需要使用更复杂的库如moment.js或date-fns)
+                    const date = new Date(share.timestamp);
+                    tsSpan.textContent = `更新时间: ${date.toLocaleString()}`;
+                    item.appendChild(tsSpan);
+
+                    item.dataset.codehash = share.codeHash;
+                    item.dataset.rootname = share.name; // 存储原始名称以便回填
+
+                    item.addEventListener('click', function() {
+                        // 移除之前所有项的 'active' 状态 (可选，用于视觉反馈)
+                        document.querySelectorAll('.public-share-item.active').forEach(activeItem => {
+                            activeItem.classList.remove('active'); // 你需要定义 .active 样式
+                        });
+                        this.classList.add('active'); // 标记当前项为活动
+
+                        selectedPublicCodeHashInput.value = this.dataset.codehash;
+                        // 可以选择用选中的名称填充某个地方，或者只是内部记录
+                        statusMessage.textContent = `已选择公共资源: ${this.dataset.rootname}`;
+                        statusMessage.className = 'alert alert-secondary'; // 用不同颜色提示选择
+                        logOutput.textContent = ''; // 清空日志
                     });
                     publicSharesListDiv.appendChild(item);
                 });
@@ -356,43 +441,10 @@
             publicShareSearchInput.addEventListener('input', function(e) {
                 const searchTerm = e.target.value.toLowerCase();
                 const filteredShares = allPublicShares.filter(share => 
-                    share.name.toLowerCase().includes(searchTerm) || 
-                    share.filename.toLowerCase().includes(searchTerm)
+                    share.name.toLowerCase().includes(searchTerm)
                 );
                 renderPublicShares(filteredShares);
             });
-
-            async function loadPublicShareContent(filename) {
-                statusMessage.textContent = '正在加载公共分享内容...';
-                statusMessage.className = 'alert alert-info';
-                resultArea.style.display = 'block'; // Show result area for status
-                logOutput.textContent = ''; // Clear logs
-
-                try {
-                    // encodeURIComponent确保包含特殊字符（如中文）的文件名能正确作为URL参数传递
-                    const response = await fetch(`{{ url_for('get_public_share_content') }}?filename=${encodeURIComponent(filename)}`);
-                    const data = await response.json();
-                    if (data.success) {
-                        base64DataInput.value = data.base64Data;
-                        rootFolderNameInput.value = data.rootFolderName;
-                        statusMessage.textContent = `已加载公共分享: ${filename}`;
-                        statusMessage.classList.remove('alert-info');
-                        statusMessage.classList.add('alert-success');
-                        // Scroll to top of form or relevant input for visibility
-                        base64DataInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-                    } else {
-                        statusMessage.textContent = `加载公共分享失败: ${data.message}`;
-                        statusMessage.classList.remove('alert-info');
-                        statusMessage.classList.add('alert-danger');
-                    }
-                } catch (error) {
-                    console.error("Error loading public share content:", error);
-                    statusMessage.textContent = `加载公共分享时发生网络错误: ${error.message}`;
-                    statusMessage.classList.remove('alert-info');
-                    statusMessage.classList.add('alert-danger');
-                }
-            }
 
             fetchPublicShares(); // Initial load
         });

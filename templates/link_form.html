@@ -33,44 +33,61 @@
                 <div class="mb-3">
                     <label for="parentFileId" class="form-label">分享文件夹ID</label>
                     <input type="text" class="form-control" id="parentFileId" name="parentFileId" value="0" required>
-                    <div class="form-text">从整个分享链接导出就填0。</div>
+                    <div class="form-text">从整个分享链接导出就填0。如果分享的是子目录，需要提供该子目录在分享中的ID (获取方式参考FAQ)。</div>
                 </div>
                 <div class="mb-3">
                     <label for="userSpecifiedBaseName" class="form-label">根目录名 (分享名)</label>
                     <input type="text" class="form-control" id="userSpecifiedBaseName" name="userSpecifiedBaseName" placeholder="例如: 链接中的资料 (可选)">
-                    <div class="form-text">即分享名（其他用户导入时显示的文件夹名）。如果留空，将使用时间戳和分享信息作为文件名。</div>
+                    <div class="form-text">即分享名（其他用户导入时显示的文件夹名，以及下载的 .123share 文件名）。如果留空，将使用时间戳和分享信息作为文件名。若加入资源共享计划则此项必填。</div>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="generateShortCode" name="generateShortCode">
+                    <label class="form-check-label" for="generateShortCode">生成短分享码</label>
+                    <div class="form-text">勾选后，您本次分享的内容会存储到数据库中，从而生成一个简短的分享码，便于分享。保存的数据是否对公众可见，取决于您是否勾选下方的“加入资源共享计划”。</div>
                 </div>
                 <div class="mb-3 form-check">
                     <input type="checkbox" class="form-check-input" id="shareProject" name="shareProject">
                     <label class="form-check-label" for="shareProject">加入资源共享计划</label>
-                    <div class="form-text">如果加入资源共享计划，您本次分享的资源将审核后公开可见(仅审核文件名有无敏感内容)。</div>
+                    <div class="form-text">勾选后，将强制生成短分享码，并且要求填写“根目录名 (分享名)”。您本次分享的资源将提交审核，通过后会对所有用户公开可见。</div>
                 </div>
                 <button type="submit" class="btn btn-primary custom-btn w-100">从链接导出</button>
             </form>
 
             <div id="resultArea" class="mt-4" style="display: none;">
-                <h5>操作结果:</h5>
+                <h5 class="mb-3">当前状态:</h5>
                 <div id="statusMessage" class="alert"></div>
+                <h5 class="mt-3">操作日志:</h5>
                 <pre id="logOutput" class="console-output p-3 rounded" style="max-height: 300px; overflow-y: auto;"></pre>
-                <div id="shareCodeArea" style="display: none;">
-                    <p><strong>您的分享码是：</strong></p>
+                
+                <div id="longShareCodeArea" class="mt-3" style="display: none;">
+                    <p><strong>您的长分享码是：</strong></p>
                     <textarea id="shareCodeOutput" class="form-control" rows="3" readonly></textarea>
-                    <div class="d-flex gap-2 mt-2 share-actions-toolbar">
-                        <button id="downloadShareCodeBtn" class="btn btn-primary custom-btn flex-fill">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-download me-2" viewBox="0 0 16 16">
-                              <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5"/>
-                              <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708z"/>
-                            </svg>
-                            下载分享文件 (.123share)
-                        </button>
-                        <button id="copyShareCodeBtn" type="button" class="btn btn-secondary flex-fill">
-                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-clipboard me-1" viewBox="0 0 16 16">
-                              <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
-                              <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
-                            </svg>
-                            复制分享码
-                        </button>
-                    </div>
+                    <button id="downloadShareCodeBtn" class="btn btn-primary custom-btn d-block w-100 mt-2 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-download me-2" viewBox="0 0 16 16">
+                          <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5"/>
+                          <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708z"/>
+                        </svg>
+                        下载分享文件 (.123share)
+                    </button>
+                    <button id="copyShareCodeBtn" type="button" class="btn btn-secondary d-block w-100 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-clipboard me-1" viewBox="0 0 16 16">
+                            <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+                            <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
+                        </svg>
+                        复制长分享码
+                    </button>
+                </div>
+
+                <div id="shortShareCodeArea" class="mt-3" style="display: none;">
+                    <p><strong>您的短分享码是：</strong></p>
+                    <textarea id="shortShareCodeOutput" class="form-control" rows="1" readonly></textarea>
+                     <button id="copyShortShareCodeBtn" type="button" class="btn btn-secondary d-block w-100 mt-2 mb-2">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-clipboard-check me-1" viewBox="0 0 16 16">
+                            <path fill-rule="evenodd" d="M10.854 7.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 9.793l2.646-2.647a.5.5 0 0 1 .708 0z"/>
+                            <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1A1.5 1.5 0 0 1 9.5 2h-3A1.5 1.5 0 0 1 5 3.5v-2A1.5 1.5 0 0 0 3.5 0H4v1.5zM5 3.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1z"/>
+                        </svg>
+                        复制短分享码
+                    </button>
                 </div>
             </div>
         </div>
@@ -82,102 +99,103 @@
             const resultArea = document.getElementById('resultArea');
             const statusMessage = document.getElementById('statusMessage');
             const logOutput = document.getElementById('logOutput');
-            const shareCodeArea = document.getElementById('shareCodeArea');
+            
+            const longShareCodeArea = document.getElementById('longShareCodeArea');
             const shareCodeOutput = document.getElementById('shareCodeOutput');
             const downloadShareCodeBtn = document.getElementById('downloadShareCodeBtn');
             const copyShareCodeBtn = document.getElementById('copyShareCodeBtn'); 
-            
-            const shareKeyInput = document.getElementById('shareKey'); // 获取分享链接Key的输入框
 
-            let finalShareData = null; // 这将存储 base64 字符串
+            const shortShareCodeArea = document.getElementById('shortShareCodeArea');
+            const shortShareCodeOutput = document.getElementById('shortShareCodeOutput');
+            const copyShortShareCodeBtn = document.getElementById('copyShortShareCodeBtn');
+            
+            const shareKeyInput = document.getElementById('shareKey'); 
+            const userSpecifiedBaseNameInput = document.getElementById('userSpecifiedBaseName');
+            const generateShortCodeCheckbox = document.getElementById('generateShortCode');
+            const shareProjectCheckbox = document.getElementById('shareProject');
+
+            let finalShareData = null; 
             let finalFilename = "shared_link_data.123share";
 
-            // 自动提取分享链接Key的逻辑
             if (shareKeyInput) {
                 shareKeyInput.addEventListener('input', function(event) {
-                    const currentVal = event.target.value; // 用户当前的输入值
-                    let processedVal = currentVal; // 处理后的值，默认为当前值
-
+                    const currentVal = event.target.value; 
+                    let processedVal = currentVal; 
                     if (processedVal.includes("/s/")) {
-                        // 如果包含 "/s/"，取其之后的部分
                         const parts = processedVal.split("/s/");
-                        processedVal = parts[parts.length - 1]; // 获取数组最后一个元素
+                        processedVal = parts[parts.length - 1]; 
                     }
-
-                    // 移除URL查询参数 (例如 ?pwd=xxxx)
-                    if (processedVal) { // 确保 processedVal 不是 undefined (例如从空的 split 结果而来)
+                    if (processedVal) { 
                         processedVal = processedVal.split("?")[0];
                     }
-                    
-                    // 移除开头和末尾的斜杠
                     if (processedVal) {
                         processedVal = processedVal.replace(/^\/+|\/+$/g, '');
                     }
-
-                    // 如果处理后的值与当前输入框的值不同，则更新输入框并尝试调整光标
                     if (currentVal !== processedVal) {
-                        const cursorPos = event.target.selectionStart; // 记录当前光标位置
-                        // 计算因处理而移除的字符数
-                        // 注意：如果处理逻辑复杂（例如中间插入字符），这个diff计算可能不准确，但对于尾部删除是准确的
+                        const cursorPos = event.target.selectionStart; 
                         const diff = currentVal.length - processedVal.length; 
-
-                        event.target.value = processedVal; // 更新输入框的值
-
-                        // 尝试恢复光标位置
-                        // 新的光标位置应该是原位置减去被删除的字符数
-                        // 例如： "https://.../s/key123/" (光标在末尾) -> "key123" (光标应在新末尾)
-                        // "abc/s/key123" (光标在 k 前) -> "key123" (光标应仍在 k 前)
+                        event.target.value = processedVal; 
                         let newCursorPos = cursorPos - diff;
-                        
-                        // 确保新光标位置不超出处理后字符串的范围
-                        if (newCursorPos < 0) {
-                            newCursorPos = 0;
-                        }
-                        if (newCursorPos > processedVal.length) {
-                            newCursorPos = processedVal.length;
-                        }
-                        
-                        event.target.setSelectionRange(newCursorPos, newCursorPos); // 设置新的光标位置
+                        if (newCursorPos < 0) newCursorPos = 0;
+                        if (newCursorPos > processedVal.length) newCursorPos = processedVal.length;
+                        event.target.setSelectionRange(newCursorPos, newCursorPos); 
                     }
                 });
             }
+            
+            shareProjectCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    generateShortCodeCheckbox.checked = true;
+                    generateShortCodeCheckbox.disabled = true;
+                    userSpecifiedBaseNameInput.required = true;
+                } else {
+                    generateShortCodeCheckbox.disabled = false;
+                    userSpecifiedBaseNameInput.required = false;
+                }
+            });
 
             linkForm.addEventListener('submit', async function (event) {
                 event.preventDefault();
                 resultArea.style.display = 'block';
                 logOutput.textContent = '';
-                shareCodeArea.style.display = 'none';
-                statusMessage.textContent = '';
-                statusMessage.className = 'alert';
+                longShareCodeArea.style.display = 'none';
+                shortShareCodeArea.style.display = 'none';
+                statusMessage.textContent = '准备开始...';
+                statusMessage.className = 'alert alert-info';
                 finalShareData = null;
 
-                const shareKey = shareKeyInput.value; // 从输入框获取最新的 shareKey
+                const shareKey = shareKeyInput.value;
                 const sharePwd = document.getElementById('sharePwd').value;
                 const parentFileId = document.getElementById('parentFileId').value;
-                const userSpecifiedBaseName = document.getElementById('userSpecifiedBaseName').value.trim();
-                const shareProject = document.getElementById('shareProject').checked;
+                const userSpecifiedBaseNameValue = userSpecifiedBaseNameInput.value.trim();
+                const generateShortCode = generateShortCodeCheckbox.checked;
+                const shareProject = shareProjectCheckbox.checked;
+
+                if (shareProject && !userSpecifiedBaseNameValue) {
+                    statusMessage.textContent = '错误: 加入资源共享计划时，必须填写根目录名 (分享名)。';
+                    statusMessage.className = 'alert alert-danger';
+                    userSpecifiedBaseNameInput.focus();
+                    return;
+                }
 
                 const payload = {
                     shareKey: shareKey,
                     sharePwd: sharePwd,
                     parentFileId: parentFileId,
-                    userSpecifiedBaseName: userSpecifiedBaseName,
+                    userSpecifiedBaseName: userSpecifiedBaseNameValue,
+                    generateShortCode: generateShortCode,
                     shareProject: shareProject
                 };
 
                 const timestamp = Math.floor(Date.now() / 1000);
-                let filenameParts = [timestamp.toString()];
-                if (userSpecifiedBaseName) {
-                    filenameParts.push(userSpecifiedBaseName);
+                if (userSpecifiedBaseNameValue) {
+                    finalFilename = `${userSpecifiedBaseNameValue}.123share`;
+                } else {
+                    // 链接导出时，如果用户未指定文件名，可以使用分享key和时间戳组合
+                    const safeShareKeyPart = shareKey.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 20);
+                    finalFilename = `${timestamp}_${safeShareKeyPart}.123share`;
                 }
-                const safeShareKey = shareKey.replace(/[^a-zA-Z0-9_-]/g, '_');
-                filenameParts.push(safeShareKey);
-                if (sharePwd) {
-                    const safeSharePwd = sharePwd.replace(/[^a-zA-Z0-9_-]/g, '_');
-                    filenameParts.push(safeSharePwd);
-                }
-                finalFilename = filenameParts.join('_') + ".123share";
-                finalFilename = finalFilename.replace(/[^a-zA-Z0-9_.\-\u4e00-\u9fa5()]/g, '_'); // 进一步清洁文件名
+                finalFilename = finalFilename.replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, '_');
 
                 try {
                     const response = await fetch("{{ url_for('api_link') }}", {
@@ -188,16 +206,21 @@
                         body: JSON.stringify(payload),
                     });
 
-                    if (!response.ok) {
+                    if (!response.ok && response.headers.get("content-type")?.includes("application/json")) {
                         const errorData = await response.json();
                         statusMessage.textContent = `错误: ${errorData.message || response.statusText}`;
-                        statusMessage.classList.add('alert-danger');
+                        statusMessage.className = 'alert alert-danger';
                         logOutput.textContent += `请求失败: ${errorData.message || response.statusText}\n`;
+                        return;
+                    } else if (!response.ok) {
+                        statusMessage.textContent = `服务器错误: ${response.status} ${response.statusText}`;
+                        statusMessage.className = 'alert alert-danger';
+                        logOutput.textContent += `服务器错误: ${response.status} ${response.statusText}\n`;
                         return;
                     }
                     
-                    statusMessage.textContent = "处理中...";
-                    statusMessage.classList.add('alert-info');
+                    statusMessage.textContent = "处理中，请稍候...";
+                    statusMessage.className = 'alert alert-info';
 
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder('utf-8');
@@ -215,44 +238,59 @@
                             if (line.trim() === '') continue;
                             try {
                                 const jsonData = JSON.parse(line);
-                                logOutput.textContent += `${jsonData.message}\n`;
-                                logOutput.scrollTop = logOutput.scrollHeight; 
-
-                                if (jsonData.isFinish === true) {
-                                    statusMessage.textContent = '从链接导出成功完成！';
-                                    statusMessage.classList.remove('alert-info', 'alert-danger');
-                                    statusMessage.classList.add('alert-success');
-                                    finalShareData = jsonData.message; 
-                                    shareCodeOutput.value = finalShareData;
-                                    shareCodeArea.style.display = 'block';
+                                if (jsonData.isFinish === null) {
+                                    logOutput.textContent += `${jsonData.message}\n`;
+                                    statusMessage.textContent = jsonData.message;
+                                } else if (jsonData.isFinish === true) {
+                                    statusMessage.textContent = '执行完毕！';
+                                    statusMessage.className = 'alert alert-success';
+                                    const resultPayload = JSON.parse(jsonData.message);
+                                    if (resultPayload.longShareCode) {
+                                        finalShareData = resultPayload.longShareCode;
+                                        shareCodeOutput.value = finalShareData;
+                                        longShareCodeArea.style.display = 'block';
+                                    }
+                                    if (resultPayload.shortShareCode) {
+                                        shortShareCodeOutput.value = resultPayload.shortShareCode;
+                                        shortShareCodeArea.style.display = 'block';
+                                    }
                                 } else if (jsonData.isFinish === false) {
                                     statusMessage.textContent = `操作失败: ${jsonData.message}`;
-                                    statusMessage.classList.remove('alert-info', 'alert-success');
-                                    statusMessage.classList.add('alert-danger');
+                                    statusMessage.className = 'alert alert-danger';
+                                    logOutput.textContent += `最终错误: ${jsonData.message}\n`;
                                 }
+                                logOutput.scrollTop = logOutput.scrollHeight; 
                             } catch (e) {
                                 console.error('解析JSON行时出错:', line, e);
                                 logOutput.textContent += `错误: 无法解析流数据: ${line}\n`;
                             }
                         }
                     }
-                     if (buffer.trim() !== '') { // 处理缓冲区中可能剩余的最后一行数据
+                    if (buffer.trim() !== '') { 
                          try {
                             const jsonData = JSON.parse(buffer);
-                            logOutput.textContent += `${jsonData.message}\n`;
-                            logOutput.scrollTop = logOutput.scrollHeight;
-                             if (jsonData.isFinish === true) {
-                                statusMessage.textContent = '从链接导出成功完成！';
-                                statusMessage.classList.remove('alert-info', 'alert-danger');
-                                statusMessage.classList.add('alert-success');
-                                finalShareData = jsonData.message;
-                                shareCodeOutput.value = finalShareData;
-                                shareCodeArea.style.display = 'block';
+                            if (jsonData.isFinish === null) {
+                                logOutput.textContent += `${jsonData.message}\n`;
+                                statusMessage.textContent = jsonData.message;
+                            } else if (jsonData.isFinish === true) {
+                                statusMessage.textContent = '执行完毕！';
+                                statusMessage.className = 'alert alert-success';
+                                const resultPayload = JSON.parse(jsonData.message);
+                                if (resultPayload.longShareCode) {
+                                    finalShareData = resultPayload.longShareCode;
+                                    shareCodeOutput.value = finalShareData;
+                                    longShareCodeArea.style.display = 'block';
+                                }
+                                if (resultPayload.shortShareCode) {
+                                    shortShareCodeOutput.value = resultPayload.shortShareCode;
+                                    shortShareCodeArea.style.display = 'block';
+                                }
                             } else if (jsonData.isFinish === false) {
                                 statusMessage.textContent = `操作失败: ${jsonData.message}`;
-                                statusMessage.classList.remove('alert-info', 'alert-success');
-                                statusMessage.classList.add('alert-danger');
+                                statusMessage.className = 'alert alert-danger';
+                                logOutput.textContent += `最终错误: ${jsonData.message}\n`;
                             }
+                            logOutput.scrollTop = logOutput.scrollHeight;
                         } catch (e) {
                             console.error('解析最终JSON缓冲区时出错:', buffer, e);
                             logOutput.textContent += `错误: 无法解析末尾流数据: ${buffer}\n`;
@@ -262,19 +300,16 @@
                 } catch (error) {
                     console.error('Fetch请求错误:', error);
                     statusMessage.textContent = `请求发送失败: ${error.message}`;
-                    statusMessage.classList.remove('alert-info', 'alert-success');
-                    statusMessage.classList.add('alert-danger');
+                    statusMessage.className = 'alert alert-danger';
                     logOutput.textContent += `请求发送失败: ${error.message}\n`;
                 }
             });
 
+            // Download and Copy button logic is identical to export_form.html
             downloadShareCodeBtn.addEventListener('click', function() {
                 if (finalShareData) {
                     try {
-                        // finalShareData 是 URL安全的 base64 字符串。
-                        // 我们希望将此字符串作为文件的内容下载。
-                        const blob = new Blob([finalShareData], { type: 'application/octet-stream' }); // 内容是 base64 字符串本身
-                        
+                        const blob = new Blob([finalShareData], { type: 'application/octet-stream' }); 
                         const link = document.createElement('a');
                         link.href = URL.createObjectURL(blob);
                         link.download = finalFilename;
@@ -283,11 +318,10 @@
                         document.body.removeChild(link);
                         URL.revokeObjectURL(link.href);
                     } catch (e) {
-                        console.error("创建下载时出错:", e);
-                         alert("创建下载文件失败: " + e.message);
+                        alert("创建下载文件失败: " + e.message);
                     }
                 } else {
-                    alert('没有可下载的分享码数据。');
+                    alert('没有可下载的长分享码数据。');
                 }
             });
 
@@ -296,19 +330,30 @@
                     navigator.clipboard.writeText(shareCodeOutput.value).then(function() {
                         const originalButtonText = copyShareCodeBtn.innerHTML;
                         copyShareCodeBtn.innerHTML = `
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-lg me-1" viewBox="0 0 16 16">
-                                <path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022z"/>
-                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-lg me-1" viewBox="0 0 16 16"><path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022z"/></svg>
                             已复制!`;
-                        setTimeout(() => {
-                            copyShareCodeBtn.innerHTML = originalButtonText;
-                        }, 2000);
+                        setTimeout(() => { copyShareCodeBtn.innerHTML = originalButtonText; }, 2000);
                     }, function(err) {
-                        console.error('复制失败: ', err);
-                        alert('复制分享码失败，您的浏览器可能不支持或权限不足。请尝试手动复制。');
+                        alert('复制长分享码失败。');
                     });
                 } else {
-                    alert('没有可复制的分享码。');
+                    alert('没有可复制的长分享码。');
+                }
+            });
+            
+            copyShortShareCodeBtn.addEventListener('click', function() {
+                if (shortShareCodeOutput.value) {
+                    navigator.clipboard.writeText(shortShareCodeOutput.value).then(function() {
+                        const originalButtonText = copyShortShareCodeBtn.innerHTML;
+                        copyShortShareCodeBtn.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-lg me-1" viewBox="0 0 16 16"><path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022z"/></svg>
+                            已复制!`;
+                        setTimeout(() => { copyShortShareCodeBtn.innerHTML = originalButtonText; }, 2000);
+                    }, function(err) {
+                        alert('复制短分享码失败。');
+                    });
+                } else {
+                    alert('没有可复制的短分享码。');
                 }
             });
         });
