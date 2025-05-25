@@ -1,8 +1,7 @@
 import sqlite3
 import os
-from tqdm import tqdm # 虽然不再导入文件，但如果Pan123类中某些部分可能仍用tqdm，保留导入无妨
 
-from utils import getStringHash # 假设 getStringHash 存在于 utils.py
+from utils import getStringHash
 
 class Pan123Database:
     def __init__(self, dbpath="./assets/PAN123DATABASE.db", debug=False):
@@ -12,7 +11,7 @@ class Pan123Database:
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
             
-        self.conn = sqlite3.connect(dbpath, check_same_thread=False) # 为Flask添加 check_same_thread=False
+        self.conn = sqlite3.connect(dbpath, check_same_thread=False)
         self.database = self.conn.cursor()
         # 如果是空的, 就创建表:
         # PAN123DATABASE (
@@ -53,7 +52,7 @@ class Pan123Database:
             # os.remove(f"./public/ok/{filename}.123share")
 
     def insertData(self, codeHash:str, rootFolderName:str, visibleFlag:bool, shareCode:str):
-        # visibleFlag: True: 公开, None: 公开(但是待审核), False: 私密 (仅生成短码，不加入公共列表)
+        # visibleFlag: True: 公开, None: 公开(但是待审核), False: 私密 (仅生成短分享码，不加入公共列表)
         try:
             # 检查 codeHash 是否已存在
             self.database.execute(
@@ -135,7 +134,7 @@ class Pan123Database:
 
 if __name__ == "__main__":
     
-    db = Pan123Database(debug=True)
+    db = Pan123Database(debug=False)
     
     print()
     print("--- 测试 listData (公开资源) ---")
