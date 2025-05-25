@@ -149,20 +149,6 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, debug=Fal
     if not channel_name:
         print("[Telegram爬虫] 没有填写channel_name, 直接跳过")
         return
-    
-    # 请注意: 公共资源库不支持来自中国大陆IP地址的用户!
-    # 请注意: 公共资源库不支持来自中国大陆IP地址的用户!
-    # 请注意: 公共资源库不支持来自中国大陆IP地址的用户!
-    
-    # 检查IP, 如果是中国的, 退出程序
-    # 当你看到这里, 请不要尝试删除本段代码, 强行运行, 不支持的IP地址是没法运行后续程序的!
-    check_ip_url = "https://ipv4.ping0.cc/geo"
-    response = requests.get(check_ip_url).text
-    if "中国" in response and not any(keyword in response for keyword in ["香港", "澳门", "台湾"]):
-            print(f"不支持当前IP地址使用：\n\n{response}")
-            exit(0)
-    else:
-        print(f"当前IP地址支持使用：\n\n{response}")
 
     file_path = f"{channel_name}_message_raw.json"
     total_json_raw_data = {}

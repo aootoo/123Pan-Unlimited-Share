@@ -1,4 +1,5 @@
 import hashlib
+import requests
 
 # 构建AbsPath
 def makeAbsPath(fullDict, parentFileId=0, debug=False):
@@ -53,3 +54,16 @@ def anonymizeId(itemsList):
 # 输入一段文本(这里是base64加密厚的字符串), 输出string的hash值
 def getStringHash(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+# 检查IP是否为中国大陆地区
+# True: 支持 (境外IP)
+# False: 不支持 (中国大陆IP)
+def isAvailableRegion():
+    check_ip_url = "https://ipv4.ping0.cc/geo"
+    response = requests.get(check_ip_url).text
+    if "中国" in response and not any(keyword in response for keyword in ["香港", "澳门", "台湾"]):
+            print(f"不支持当前IP地址使用：\n\n{response}")
+            return False
+    else:
+        print(f"当前IP地址支持使用：\n\n{response}")
+        return True

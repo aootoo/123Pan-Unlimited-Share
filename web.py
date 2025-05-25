@@ -7,6 +7,7 @@ import unicodedata
 
 from Pan123 import Pan123
 from telegram_spider import startSpider
+from utils import isAvailableRegion
 
 DEBUG = False
 
@@ -315,6 +316,16 @@ if __name__ == '__main__':
     message_after_id = 8050 # 从 8050 开始爬, 因为该频道之前的分享内容【全】【都】【失】【效】【了】
     port = 33333 # 网页运行端口
     
+    # 当你看到这里, 请不要尝试删除本段代码, 强行运行
+    
+    # 不支持的IP地址是没法运行后续程序的!
+    # 不支持的IP地址是没法运行后续程序的!
+    # 不支持的IP地址是没法运行后续程序的!
+
+    # 如果是中国大陆的IP, 退出程序
+    if not isAvailableRegion():
+        exit(0)
+
     # 从Telegram频道爬取数据, 导入到公共资源库
     startSpider(
         channel_name=channel_name,

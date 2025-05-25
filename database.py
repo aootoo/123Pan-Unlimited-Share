@@ -70,5 +70,5 @@ class Pan123Database:
 
 if __name__ == "__main__":
     db = Pan123Database()
-    print([i[2] for i in db.listData()])
+    [print(i[1]) for i in db.listData()]
     db.close()
