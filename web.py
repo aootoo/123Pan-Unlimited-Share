@@ -468,7 +468,7 @@ def list_public_shares_from_db():
         public_shares_raw = db.listData(visibleFlag=True) # visibleFlag=True (公开且审核通过)
         
         processed_shares = []
-        for code_hash, name, _, ts, __ in public_shares_raw: # 解包时忽略 shareCode 和 visibleFlag
+        for code_hash, name, ts in public_shares_raw:
             processed_shares.append({"name": name, "codeHash": code_hash, "timestamp": ts})
         
         sorted_shares = sorted(processed_shares, key=lambda x: x['timestamp'], reverse=True)

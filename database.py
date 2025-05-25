@@ -102,22 +102,45 @@ class Pan123Database:
             "SELECT codeHash, rootFolderName, visibleFlag, shareCode, timeStamp FROM PAN123DATABASE WHERE codeHash=?",
             (codeHash,)
             )
-        # 返回单条记录或 None
-        return self.database.fetchone()
+        result = []
+        for codeHash, rootFolderName, visibleFlag, shareCode, timeStamp in self.database.fetchall():
+            result.append((
+                codeHash,
+                rootFolderName,
+                bool(visibleFlag) if visibleFlag is not None else None, # 不知道为什么，从数据库里读出来的不是bool? 还要额外转一下
+                shareCode,
+                timeStamp
+                ))
+        return result
 
     def queryName(self, rootFolderName:str): # 主要用于 telegram_spider 检查重名
         self.database.execute(
             "SELECT codeHash, rootFolderName, visibleFlag, shareCode, timeStamp FROM PAN123DATABASE WHERE rootFolderName=?",
             (rootFolderName,)
             )
-        return self.database.fetchone()
+        result = []
+        for codeHash, rootFolderName, visibleFlag, shareCode, timeStamp in self.database.fetchall():
+            result.append((
+                codeHash,
+                rootFolderName,
+                bool(visibleFlag) if visibleFlag is not None else None, # 不知道为什么，从数据库里读出来的不是bool? 还要额外转一下
+                shareCode,
+                timeStamp
+                ))
+        return result
 
     def getDataByHash(self, codeHash: str):
         self.database.execute(
             "SELECT rootFolderName, shareCode, visibleFlag FROM PAN123DATABASE WHERE codeHash=?",
             (codeHash,)
             )
-        result = self.database.fetchone()
+        result = []
+        for rootFolderName, shareCode, visibleFlag in self.database.fetchall():
+            result.append((
+                rootFolderName,
+                shareCode,
+                bool(visibleFlag) if visibleFlag is not None else None, # 不知道为什么，从数据库里读出来的不是bool? 还要额外转一下 
+            ))
         if result:
             if self.debug:
                 print(f"通过 codeHash '{codeHash}' 查询到数据: rootFolderName='{result[0]}', visibleFlag={result[2]}")
@@ -150,7 +173,13 @@ class Pan123Database:
         self.database.execute("SELECT codeHash, rootFolderName, shareCode, timeStamp, visibleFlag FROM PAN123DATABASE ORDER BY timeStamp DESC")
         result = []
         for codeHash, rootFolderName, shareCode, timeStamp, visibleFlag in self.database.fetchall():
-            result.append((codeHash, rootFolderName, shareCode, timeStamp, bool(visibleFlag) if visibleFlag is not None else None))
+            result.append((
+                codeHash,
+                rootFolderName,
+                shareCode,
+                timeStamp,
+                bool(visibleFlag) if visibleFlag is not None else None # 不知道为什么，从数据库里读出来的不是bool? 还要额外转一下
+                ))
         return result
 
     def updateVisibleFlag(self, codeHash: str, newVisibleFlag: bool):
