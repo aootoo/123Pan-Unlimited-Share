@@ -43,40 +43,63 @@ def _handle_database_storage(db_instance, code_hash, root_folder_name_cleaned, v
     """
     处理数据存储到数据库的通用逻辑，包括覆写。
     返回短分享码 (如果成功) 或 None (如果失败)。
+    visible_flag:
+        None: 共享计划 - 待审核
+        True: 共享计划 - 已通过 (通常由管理员设置，API层面用户提交时是None)
+        False: 私密短码
+    is_share_project_request: 布尔值，指示当前请求是否明确要求加入共享计划。
     """
     existing_entry = db_instance.queryHash(code_hash)
     operation_successful = False
     message_log = []
 
     if existing_entry:
-        message_log.append(f"短分享码已存在 (Hash: {code_hash[:8]}...)。")
-        existing_visible_flag = existing_entry[2] # (codeHash, rootFolderName, visibleFlag, shareCode, timeStamp) -> visibleFlag index 2
+        message_log.append(f"数据库中已存在具有相同内容的分享 (Hash: {code_hash[:8]}...)。")
+        existing_code_hash, existing_root_folder_name, existing_visible_flag, existing_share_code, existing_timestamp = existing_entry
+        
+        # 核心覆写逻辑：
+        # 1. 如果现有的是私密 (False)，新请求是共享计划 (is_share_project_request is True, 对应 visible_flag=None) -> 删除旧的，插入新的
+        # 2. 如果现有的是共享计划待审核 (None)，新请求也是共享计划 (is_share_project_request is True) -> 通常是重复提交，可以更新时间戳或提示已存在
+        # 3. 如果现有的是已通过的共享 (True)，新请求是共享计划 -> 通常不应由用户降级或修改，提示已存在
+        # 4. 如果新旧 visible_flag 一致 -> 无需操作，短码有效
+        # 5. 其他情况（如从公共降为私密）-> 通常不允许，或提示错误
 
-        # 覆写逻辑：仅当从私有 (False) 升级到公共待审核 (None) 时允许覆写
-        if is_share_project_request and existing_visible_flag is False:
+        if is_share_project_request and bool(existing_visible_flag) is False: # 私密升级到共享计划
+            message_log.append(f"检测到私密分享 (原名: {existing_root_folder_name}) 将升级为公共分享 (待审核，新名: {root_folder_name_cleaned})。")
             if db_instance.deleteData(code_hash):
-                message_log.append("原有私密分享记录已删除，准备更新为公共分享(待审核)。")
-                if db_instance.insertData(code_hash, root_folder_name_cleaned, visible_flag, share_code_b64):
+                message_log.append("原私密分享记录已删除。")
+                if db_instance.insertData(code_hash, root_folder_name_cleaned, None, share_code_b64): # 共享计划总是以 None (待审核) 插入
                     operation_successful = True
-                    message_log.append("成功将分享存入数据库 (公共待审核)。")
+                    message_log.append("成功将分享更新并存入数据库 (公共待审核)。")
                 else:
-                    message_log.append("错误：删除旧私密分享后，无法重新插入为公共分享。")
+                    message_log.append("错误：删除旧私密分享后，无法重新插入为公共分享。") # 理论上不太可能发生，除非并发极高
             else:
                 message_log.append("错误：尝试删除旧私密分享记录失败。")
-        elif existing_visible_flag == visible_flag : # 标记相同，认为是重复操作，也算成功获取短码
-             operation_successful = True
-             message_log.append(f"与现有记录标志相同 ({visible_flag})，无需重复写入。")
-        else: # 其他情况 (例如 公开->私密，或 公开->公开) 不覆写，而是提示用户
-            message_log.append(f"数据库中已存在具有不同可见性 ({existing_visible_flag}) 的相同内容。本次未覆写。")
-            # 如果希望禁止降级或修改已公开的，可以在这里让  operation_successful = False
-            # 目前逻辑是，如果不是私密升公开，则保留现有记录，短码仍然有效
-            operation_successful = True # 短码依然是这个
-    else:
-        if db_instance.insertData(code_hash, root_folder_name_cleaned, visible_flag, share_code_b64):
+        
+        elif bool(existing_visible_flag) == bool(visible_flag): # 标志完全相同，认为是重复操作或获取已有短码
             operation_successful = True
-            message_log.append("成功将分享存入数据库。")
+            message_log.append(f"数据库中已存在完全相同的记录 (名称: {existing_root_folder_name}, 可见性: {bool(existing_visible_flag)})。短分享码有效。")
+            # 如果 rootFolderName 不同，但 visibleFlag 和 shareCode 相同，可以考虑是否更新 rootFolderName
+            if existing_root_folder_name != root_folder_name_cleaned and bool(visible_flag) is not True: # 不更新已审核通过的公开资源的名称
+                 # 更新名称的逻辑可以加在这里，例如：
+                 # db_instance.updateRootFolderName(code_hash, root_folder_name_cleaned)
+                 # 注意：Pan123Database 类需要添加 updateRootFolderName 方法
+                 message_log.append(f"提示：分享内容已存在，但本次提供的根目录名 ('{root_folder_name_cleaned}')与库中 ('{existing_root_folder_name}') 不同。如需更新请联系管理员或检查逻辑。")
+        
+        else: # 其他类型的冲突 （例如 公开->私密，待审核->私密，已审核公开->待审核公开 等）
+            message_log.append(f"数据库中已存在此分享，但具有不同的可见性/状态 (库中: {bool(existing_visible_flag)}, 请求: {bool(visible_flag)})。")
+            message_log.append("为避免冲突或降级，本次未覆写数据库记录。您仍然可以使用查询到的短分享码。")
+            # 在这种情况下，虽然没有写入，但既然内容相同，返回的短码仍然是有效的
+            operation_successful = True 
+            # 如果不希望这种情况下返回短码，可以将 operation_successful 设为 False
+
+    else: # 数据库中不存在此 code_hash
+        if db_instance.insertData(code_hash, root_folder_name_cleaned, bool(visible_flag), share_code_b64):
+            operation_successful = True
+            message_log.append(f"成功将新分享存入数据库 (根目录名: {root_folder_name_cleaned}, 可见性: {bool(visible_flag)})。")
         else:
-            message_log.append("错误：无法将分享存入数据库 (可能是并发冲突)。")
+            # 这种情况比较罕见，除非是数据库写入失败或者并发时主键冲突（虽然前面查了不存在）
+            message_log.append("错误：无法将新分享存入数据库。")
             
     return code_hash if operation_successful else None, message_log
 
@@ -511,5 +534,4 @@ if __name__ == '__main__':
     )
 
     # 启动Flask应用
-    print(f"Web应用将在 http://0.0.0.0:{port} 上启动")
     app.run(debug=DEBUG, host='0.0.0.0', port=port, threaded=True) # threaded=True 是Flask的默认值之一，但显式写出无害
