@@ -32,40 +32,53 @@ class Pan123Database:
         """)
         self.conn.commit()
         # 从 ./public/ok 导入文件
-        self.importPublicOkFiles()
+        # self.importPublicOkFiles()
 
     def importPublicOkFiles(self):
         # 检查 ./public/ok 文件夹内是否存在 *.123share 文件, 如果存在, 则挨个读取, 并将其加入数据库, 随后删除该文件
+        # 这个函数是为了兼容旧版本
         ok_path = os.path.join(os.getcwd(), "public", "ok")
+        if not os.path.exists(ok_path): # 如果 public/ok 不存在了，就直接返回
+            print(f"兼容模式：未找到 {ok_path} 文件夹，跳过旧文件导入。")
+            return
+            
         print(f"导入 {ok_path} 文件夹内的所有 *.123share 文件中")
         filenames = os.listdir(ok_path)
-        filenames = [filename[:-9] for filename in filenames if filename.endswith(".123share")]
+        # 过滤确保是文件夹中的文件，而不是子目录
+        filenames_to_process = []
         for filename in filenames:
-            with open(os.path.join(ok_path, f"{filename}.123share"), "r") as f:
-                filedata = f.read().strip("\n").strip() # 去除换行和空格 (文件只有一行, 这个是确定的)
-            codeHash = getStringHash(filedata)
-            shareCode = filedata
-            rootFolderName = filename
-            self.insertData(codeHash, rootFolderName, True, shareCode)
-            if self.debug:
-                print(f"导入 {filename}.123share 文件, rootFolderName: {rootFolderName}, codeHash: {codeHash}")
-            # os.remove(f"./public/ok/{filename}.123share")
+            if filename.endswith(".123share") and os.path.isfile(os.path.join(ok_path, filename)):
+                filenames_to_process.append(filename[:-9])
+
+        for filename_base in filenames_to_process:
+            file_path_to_read = os.path.join(ok_path, f"{filename_base}.123share")
+            try:
+                with open(file_path_to_read, "r", encoding='utf-8') as f:
+                    filedata = f.read().strip("\n").strip() # 去除换行和空格 (文件只有一行, 这个是确定的)
+                codeHash = getStringHash(filedata)
+                shareCode = filedata
+                rootFolderName = filename_base # 使用去除.123share后缀的文件名
+                
+                # 尝试插入，如果已存在（基于主键codeHash），则跳过
+                # 这里的visibleFlag默认为True因为它们来自旧的public/ok目录
+                # 为避免重复插入导致错误，先查询
+                self.database.execute("SELECT 1 FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
+                if self.database.fetchone():
+                    if self.debug:
+                        print(f"兼容模式：{filename_base}.123share (codeHash: {codeHash}) 已存在于数据库，跳过导入。")
+                else:
+                    self.insertData(codeHash, rootFolderName, True, shareCode) # 默认旧的公开资源为 True
+                    if self.debug:
+                        print(f"兼容模式：导入 {filename_base}.123share 文件, rootFolderName: {rootFolderName}, codeHash: {codeHash}")
+                #可以选择删除文件，但为了安全起见，先注释掉，可以手动清理
+                # os.remove(file_path_to_read)
+            except Exception as e:
+                print(f"兼容模式：处理 {filename_base}.123share 时发生错误: {e}")
 
     def insertData(self, codeHash:str, rootFolderName:str, visibleFlag:bool, shareCode:str):
         # visibleFlag: True: 公开, None: 公开(但是待审核), False: 私密 (仅生成短分享码，不加入公共列表)
         try:
-            # 检查 codeHash 是否已存在
-            self.database.execute(
-                "SELECT rootFolderName FROM PAN123DATABASE WHERE codeHash=?",
-                (codeHash,)
-                )
-            existing_entry = self.database.fetchone()
-            if existing_entry:
-                if self.debug:
-                    print(f"短分享码 (codeHash): {codeHash} 已存在, 对应的根目录名: {existing_entry[0]}. 不重复插入.")
-                return True # 返回 Ture 表示已存在，虽然插入失败但是不影响后续操作
-            
-            # 插入数据
+            # 检查 codeHash 是否已存在, 由调用方 web.py 处理覆写逻辑，这里直接尝试插入
             self.database.execute(
                 "INSERT INTO PAN123DATABASE (codeHash, rootFolderName, visibleFlag, shareCode) VALUES (?, ?, ?, ?)",
                 (codeHash, rootFolderName, visibleFlag, shareCode)
@@ -74,9 +87,12 @@ class Pan123Database:
             if self.debug:
                 print(f"成功插入数据: codeHash={codeHash}, rootFolderName={rootFolderName}, visibleFlag={visibleFlag}")
             return True # 返回 True 表示插入成功
-        except sqlite3.IntegrityError: # 捕获唯一约束冲突，尽管前面已经检查过，但作为双重保险
-            print(f"插入数据失败: 短分享码 (codeHash): {codeHash} 已存在 (完整性错误).")
-            return False
+        except sqlite3.IntegrityError: # 捕获唯一约束冲突
+            # 这个错误理论上不应该发生，因为 web.py 会先检查和删除（如果需要覆写）
+            # 但如果直接调用此方法且 codeHash 已存在且不是覆写场景，则会到这里
+            if self.debug: # 在 debug 模式下打印更详细的信息
+                 print(f"插入数据失败: 短分享码 (codeHash): {codeHash} 已存在 (完整性错误). 这通常意味着调用方未正确处理覆写逻辑。")
+            return False # 返回 False 表示因主键冲突插入失败
         except Exception as e:
             print(f"插入数据失败, 原因: {e}")
             return False
@@ -89,7 +105,7 @@ class Pan123Database:
         # 返回单条记录或 None
         return self.database.fetchone()
 
-    def queryName(self, rootFolderName:str):
+    def queryName(self, rootFolderName:str): # 主要用于 telegram_spider 检查重名
         self.database.execute(
             "SELECT codeHash, rootFolderName, visibleFlag, shareCode, timeStamp FROM PAN123DATABASE WHERE rootFolderName=?",
             (rootFolderName,)
@@ -105,7 +121,7 @@ class Pan123Database:
         if result:
             if self.debug:
                 print(f"通过 codeHash '{codeHash}' 查询到数据: rootFolderName='{result[0]}', visibleFlag={result[2]}")
-            return result
+            return result # 返回 (rootFolderName, shareCode, visibleFlag)
         else:
             if self.debug:
                 print(f"通过 codeHash '{codeHash}' 未查询到数据")
@@ -113,20 +129,21 @@ class Pan123Database:
 
     def listData(self, visibleFlag: bool = True):
         # 只展示visibleFlag为True (公开且审核通过) 的数据
-        # 返回 [(codeHash, rootFolderName), ...]
-        self.database.execute("SELECT codeHash, rootFolderName FROM PAN123DATABASE WHERE visibleFlag=? ORDER BY timeStamp DESC", (visibleFlag,))
+        # 返回 [(codeHash, rootFolderName, timeStamp), ...]
+        self.database.execute("SELECT codeHash, rootFolderName, timeStamp FROM PAN123DATABASE WHERE visibleFlag=? ORDER BY timeStamp DESC", (visibleFlag,))
         return self.database.fetchall()
     
     def deleteData(self, codeHash:str):
         self.database.execute("SELECT codeHash FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
         if self.database.fetchone() is None:
-            print(f"codeHash: {codeHash} 不存在, 不删除")
-            return False
+            if self.debug: # 在 debug 模式下打印信息
+                print(f"codeHash: {codeHash} 不存在, 不删除")
+            return False # False 表示未找到，所以未删除
         self.database.execute("DELETE FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
         self.conn.commit()
         if self.debug:
             print(f"已删除 codeHash: {codeHash}")
-        return True
+        return True # True 表示成功删除
 
     def close(self):
         if self.conn:
@@ -143,7 +160,7 @@ if __name__ == "__main__":
     public_shares = db.listData()
     if public_shares:
         for item in public_shares:
-            print(item)
+            print(item) # (codeHash, rootFolderName, timeStamp)
     else:
         print("无公开资源")
 
