@@ -25,24 +25,25 @@
                 <div class="mb-3">
                     <label for="password" class="form-label">密码</label>
                     <input type="password" class="form-control" id="password" name="password" required>
-                    <div class="form-text">123云盘的登录密码（担心隐私风险? 推荐 <a href="https://github.com/realcwj/123Pan-Unlimited-Share?tab=readme-ov-file#%E6%8E%A8%E8%8D%90%E6%9C%AC%E5%9C%B0%E9%83%A8%E7%BD%B2%E5%8F%AF%E8%A7%86%E5%8C%96%E7%95%8C%E9%9D%A2%E7%BD%91%E9%A1%B5" target="_blank">本地部署</a>）</div>
+                    <div class="form-text">123云盘的登录密码</div>
+                    <div class="form-text"><b>您的账号、密码只在浏览器本地保存</b>（依然担心隐私风险? 推荐 <a href="https://github.com/realcwj/123Pan-Unlimited-Share?tab=readme-ov-file#%E6%8E%A8%E8%8D%90%E6%9C%AC%E5%9C%B0%E9%83%A8%E7%BD%B2%E5%8F%AF%E8%A7%86%E5%8C%96%E7%95%8C%E9%9D%A2%E7%BD%91%E9%A1%B5" target="_blank">本地部署</a>）</div>
                 </div>
                 
                 <ul class="nav nav-tabs mt-4 mb-0" id="importTabs" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="public-repo-tab" data-bs-toggle="tab" data-bs-target="#publicRepoContent" type="button" role="tab" aria-controls="publicRepoContent" aria-selected="true">从公共资源库</button>
+                        <button class="nav-link active" id="public-repo-tab" data-bs-toggle="tab" data-bs-target="#publicRepoContent" type="button" role="tab" aria-controls="publicRepoContent" aria-selected="true">从公共资源库导入</button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="short-code-tab" data-bs-toggle="tab" data-bs-target="#shortCodeContent" type="button" role="tab" aria-controls="shortCodeContent" aria-selected="false">从短分享码</button>
+                        <button class="nav-link" id="short-code-tab" data-bs-toggle="tab" data-bs-target="#shortCodeContent" type="button" role="tab" aria-controls="shortCodeContent" aria-selected="false">从短分享码导入</button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="long-code-tab" data-bs-toggle="tab" data-bs-target="#longCodeContent" type="button" role="tab" aria-controls="longCodeContent" aria-selected="false">从长分享码</button>
+                        <button class="nav-link" id="long-code-tab" data-bs-toggle="tab" data-bs-target="#longCodeContent" type="button" role="tab" aria-controls="longCodeContent" aria-selected="false">从长分享码导入</button>
                     </li>
                 </ul>
 
                 <div class="tab-content" id="importTabsContent">
                     <div class="tab-pane fade show active" id="publicRepoContent" role="tabpanel" aria-labelledby="public-repo-tab">
-                        <p class="mt-2"><strong>从公共资源库选择:</strong></p>
+                        <p class="mt-2"><strong>公共资源库</strong></p>
                         <div class="mb-3">
                             <input type="text" class="form-control" id="publicShareSearch" placeholder="搜索公共资源名称...">
                         </div>
@@ -51,7 +52,7 @@
                                 <p class="text-muted text-center">正在加载公共资源列表...</p>
                             </div>
                         </div>
-                        <small class="form-text">点击上方列表中的资源名称即可选中，然后点击下方“开始导入”按钮。</small>
+                        <small class="form-text">点击上方列表中的资源名称即可选中资源，然后点击下方“开始导入”按钮。</small>
                         <input type="hidden" id="selectedPublicCodeHash" name="selectedPublicCodeHash">
                     </div>
 
@@ -59,25 +60,27 @@
                         <div class="mb-3 mt-3">
                             <label for="shortCodeInput" class="form-label">短分享码</label>
                             <input type="text" class="form-control" id="shortCodeInput" name="shortCodeInput" placeholder="粘贴短分享码">
-                            <div class="form-text">由本工具生成的简短分享代码。</div>
+                            <div class="form-text">由本站生成的短分享码。</div>
+                            <div class="form-text"><b>注意：不同网站生成的短分享码数据不互通</b></div>
                         </div>
                     </div>
 
                     <div class="tab-pane fade" id="longCodeContent" role="tabpanel" aria-labelledby="long-code-tab">
                         <div class="mb-3 mt-3">
                             <label for="longBase64DataInput" class="form-label">长分享码 (Base64)</label>
-                            <textarea class="form-control" id="longBase64DataInput" name="longBase64DataInput" rows="4" placeholder="粘贴完整的分享码内容 (通常是.123share文件里的内容)"></textarea>
+                            <textarea class="form-control" id="longBase64DataInput" name="longBase64DataInput" rows="4" placeholder="粘贴完整的分享码内容 (即 *.123share 文件里的内容)"></textarea>
                             <div class="form-text">即 <code>*.123share</code> 文件的内容。</div>
                         </div>
                         <div class="mb-3">
                             <label for="longRootFolderNameInput" class="form-label">根目录名</label>
-                            <input type="text" class="form-control" id="longRootFolderNameInput" name="longRootFolderNameInput" placeholder="例如: 我导入的电影合集">
-                            <div class="form-text">导入时在123云盘中创建的文件夹名。</div>
+                            <input type="text" class="form-control" id="longRootFolderNameInput" name="longRootFolderNameInput" placeholder="例如: XX电影">
+                            <div class="form-text">导入时在123云盘中创建的根目录文件夹名。</div>
                         </div>
                         <div class="mb-3 form-check">
                             <input type="checkbox" class="form-check-input" id="importShareProject" name="importShareProject">
-                            <label class="form-check-label" for="importShareProject">将此长分享码加入资源共享计划</label>
-                            <div class="form-text">勾选后，您提供的长分享码和根目录名将被存入数据库，并生成一个短分享码供他人使用。资源将提交审核，通过后公开可见。</div>
+                            <label class="form-check-label" for="importShareProject">加入资源共享计划</label>
+                            <div class="form-text">勾选后，您本次分享的资源将提交审核，通过后会对所有用户公开可见。</div>
+                            <div class="form-text">勾选本项将强制要求填写“根目录名 (分享名)”。</div>
                         </div>
                     </div>
                 </div>
