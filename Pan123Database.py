@@ -1,6 +1,7 @@
 import sqlite3
 import os
 
+from tqdm import tqdm
 from utils import getStringHash
 
 class Pan123Database:
@@ -32,24 +33,23 @@ class Pan123Database:
         """)
         self.conn.commit()
 
-    def importPublicOkFiles(self):
+    def importPublicOkFiles(self, folder_path="./public/ok"):
         # 检查 ./public/ok 文件夹内是否存在 *.123share 文件, 如果存在, 则挨个读取, 并将其加入数据库, 随后删除该文件
         # 这个函数是为了兼容旧版本
-        ok_path = os.path.join(os.getcwd(), "public", "ok")
-        if not os.path.exists(ok_path): # 如果 public/ok 不存在了，就直接返回
-            print(f"兼容模式：未找到 {ok_path} 文件夹，跳过旧文件导入。")
+        if not os.path.exists(folder_path): # 如果 public/ok 不存在了，就直接返回
+            print(f"兼容模式：未找到 {folder_path} 文件夹，跳过旧文件导入。")
             return
             
-        print(f"导入 {ok_path} 文件夹内的所有 *.123share 文件中")
-        filenames = os.listdir(ok_path)
+        print(f"导入 {folder_path} 文件夹内的所有 *.123share 文件中")
+        filenames = os.listdir(folder_path)
         # 过滤确保是文件夹中的文件，而不是子目录
         filenames_to_process = []
         for filename in filenames:
-            if filename.endswith(".123share") and os.path.isfile(os.path.join(ok_path, filename)):
+            if filename.endswith(".123share") and os.path.isfile(os.path.join(folder_path, filename)):
                 filenames_to_process.append(filename[:-9])
 
-        for filename_base in filenames_to_process:
-            file_path_to_read = os.path.join(ok_path, f"{filename_base}.123share")
+        for filename_base in tqdm(filenames_to_process):
+            file_path_to_read = os.path.join(folder_path, f"{filename_base}.123share")
             try:
                 with open(file_path_to_read, "r", encoding='utf-8') as f:
                     filedata = f.read().strip("\n").strip() # 去除换行和空格 (文件只有一行, 这个是确定的)
@@ -62,8 +62,7 @@ class Pan123Database:
                 # 为避免重复插入导致错误，先查询
                 self.database.execute("SELECT 1 FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
                 if self.database.fetchone():
-                    if self.debug:
-                        print(f"兼容模式：{filename_base}.123share (codeHash: {codeHash}) 已存在于数据库，跳过导入。")
+                    tqdm.write(f"兼容模式：{filename_base}.123share (codeHash: {codeHash}) 已存在于数据库，跳过导入。")
                 else:
                     self.insertData(codeHash, rootFolderName, True, shareCode) # 默认旧的公开资源为 True
                     if self.debug:
@@ -223,7 +222,7 @@ if __name__ == "__main__":
     
     
     # 从 ./public/ok 导入文件 (兼容旧版)
-    db.importPublicOkFiles()
+    db.importPublicOkFiles(folder_path="./export")
     
     print()
     print("--- 测试 listData (公开资源) ---")
