@@ -19,7 +19,7 @@ class Pan123Database:
         #   rootFolderName TEXT,      -- 用户指定的分享根目录名
         #   visibleFlag BOOLEAN,      -- True: 公开可见（通过公共列表），False: 私有短码（不公开），None: 待审核（加入共享计划）
         #   shareCode TEXT,           -- 完整的分享码（即长码base64）
-        #   timeStamp DATETIME DEFAULT CURRENT_TIMESTAMP -- 数据插入时间
+        #   timeStamp DATETIME DEFAULT (datetime('now', '+8 hours')) -- 数据插入时间 (GMT+8: 北京时间)
         # )
         self.database.execute("""
             CREATE TABLE IF NOT EXISTS PAN123DATABASE (
