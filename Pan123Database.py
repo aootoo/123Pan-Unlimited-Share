@@ -31,8 +31,6 @@ class Pan123Database:
             )
         """)
         self.conn.commit()
-        # 从 ./public/ok 导入文件
-        # self.importPublicOkFiles()
 
     def importPublicOkFiles(self):
         # 检查 ./public/ok 文件夹内是否存在 *.123share 文件, 如果存在, 则挨个读取, 并将其加入数据库, 随后删除该文件
@@ -222,6 +220,10 @@ class Pan123Database:
 if __name__ == "__main__":
     
     db = Pan123Database(debug=False)
+    
+    
+    # 从 ./public/ok 导入文件 (兼容旧版)
+    # db.importPublicOkFiles()
     
     print()
     print("--- 测试 listData (公开资源) ---")

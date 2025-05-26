@@ -11,7 +11,7 @@ from functools import wraps
 from Pan123 import Pan123
 from telegram_spider import startSpider
 from utils import isAvailableRegion, getStringHash
-from database import Pan123Database
+from Pan123Database import Pan123Database
 
 # 调试模式
 DEBUG = False

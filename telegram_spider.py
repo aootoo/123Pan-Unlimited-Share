@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 import urllib.parse
 from tqdm import tqdm
 from Pan123 import Pan123
-from database import Pan123Database
+from Pan123Database import Pan123Database
 from utils import getStringHash
 
 def getContent(channel_name, after_id, debug=False):
