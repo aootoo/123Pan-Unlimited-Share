@@ -158,3 +158,57 @@ function displayShareCodesAndActions(data, elements) {
     }
     return longShareData;
 }
+
+// --- IP区域检查功能 ---
+
+/**
+ * 客户端侧检查IP是否为中国大陆地区
+ * @returns {Promise<boolean>} True: 支持 (境外IP或港澳台或API请求失败), False: 不支持 (中国大陆IP)。
+ */
+async function isAvailableRegionJS() {
+    const checkIpUrl = "https://ipv4.ping0.cc/geo";
+    try {
+        const response = await fetch(checkIpUrl, { cache: "no-store" }); // cache: "no-store" 确保获取最新信息
+        if (!response.ok) {
+            console.warn("IP地理位置检查API请求失败:", response.status, "将默认允许访问。");
+            return true; // API请求失败时，默认为true以允许访问
+        }
+        const responseText = await response.text();
+        
+        // 检查是否包含"中国"并且不包含"香港", "澳门", "台湾"
+        if (responseText.includes("中国") && 
+            !["香港", "澳门", "台湾"].some(keyword => responseText.includes(keyword))) {
+            // console.log(`当前IP地址检测为中国大陆，根据策略将限制访问。API响应: \n${responseText}`);
+            return false; // 中国大陆IP
+        } else {
+            // console.log(`当前IP地址检测为非中国大陆或港澳台，允许访问。API响应: \n${responseText}`);
+            return true; // 非中国大陆IP或港澳台
+        }
+    } catch (error) {
+        console.error("检查IP地理位置时发生网络错误:", error, "将默认允许访问。");
+        return true; // 发生网络等错误时，默认为true
+    }
+}
+
+/**
+ * 检查用户区域并根据结果重定向。
+ * 如果区域不受支持，则重定向到 /banip 页面。
+ */
+async function checkRegionAndRedirect() {
+    // 仅当当前页面不是 /banip 时才执行检查和重定向，防止无限循环
+    if (window.location.pathname === '/banip') {
+        return;
+    }
+
+    // 在执行检查前，可以先给用户一个提示，例如显示一个加载遮罩
+    // document.body.classList.add('checking-region'); // 假设有一个CSS类来显示加载状态
+
+    const isAllowed = await isAvailableRegionJS();
+
+    // document.body.classList.remove('checking-region'); // 移除加载状态
+
+    if (!isAllowed) {
+        window.location.href = '/banip'; // 服务器端应配置 /banip 路由
+    }
+}
+// --- IP区域检查功能结束 ---

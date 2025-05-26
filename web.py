@@ -49,7 +49,6 @@ def custom_secure_filename_part(name_str):
         return "untitled_share" # 提供一个默认名
     return name_str
 
-# --- Admin 认证装饰器 ---
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -63,7 +62,9 @@ def admin_required(f):
 def index():
     return render_template('index.html')
 
-# --- API Endpoints ---
+@app.route('/banip')
+def banip_page():
+    return render_template('banip.html')
 
 def _handle_database_storage(db_instance, code_hash, root_folder_name_cleaned, visible_flag, share_code_b64, is_share_project_request):
     """

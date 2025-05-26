@@ -1,6 +1,9 @@
 // static/js/exportPage.js
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+    // 客户端侧检查IP是否为中国大陆地区
+    await checkRegionAndRedirect(); 
+
     const exportForm = document.getElementById('exportForm');
     const resultArea = document.getElementById('resultArea');
     const statusMessageEl = document.getElementById('statusMessage');
