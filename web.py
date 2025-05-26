@@ -9,7 +9,7 @@ import unicodedata
 from functools import wraps
 
 from Pan123 import Pan123
-from telegram_spider import startSpider
+from telegramSpider import startSpider
 from utils import isAvailableRegion, getStringHash
 from Pan123Database import Pan123Database
 
