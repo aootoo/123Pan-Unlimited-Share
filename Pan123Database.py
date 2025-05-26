@@ -1,11 +1,12 @@
 import sqlite3
 import os
+import requests
 
 from tqdm import tqdm
 from utils import getStringHash
 
 class Pan123Database:
-    def __init__(self, dbpath="./assets/PAN123DATABASE.db", debug=False):
+    def __init__(self, dbpath, debug=False):
         self.debug = debug
         # 确保数据库目录存在
         db_dir = os.path.dirname(dbpath)
@@ -72,6 +73,13 @@ class Pan123Database:
             except Exception as e:
                 print(f"兼容模式：处理 {filename_base}.123share 时发生错误: {e}")
 
+    def downloadLatestDatabase(self, file_path="./latest.db"):
+        url = 'https://raw.githubusercontent.com/realcwj/123Pan-Unlimited-Share/refs/heads/main/assets/PAN123DATABASE.db' 
+        r = requests.get(url)
+        with open(file_path, "wb") as f:
+            f.write(r.content)
+        return file_path
+
     def importDatabase(self, database_path:str):
         # 导入一个数据库文件, 并将其数据合并到当前数据库
         # 导入的数据库文件格式与当前数据库相同
@@ -107,6 +115,9 @@ class Pan123Database:
         conn_to_import.close()
         if self.debug:
             print(f"导入了 {len(codeHashes_to_import)} 条记录到当前数据库。")
+        
+        # 删除导入的数据库文件
+        os.remove(database_path)
 
     def insertData(self, codeHash:str, rootFolderName:str, visibleFlag:bool, shareCode:str):
         # visibleFlag: True: 公开, None: 公开(但是待审核), False: 私密 (仅生成短分享码，不加入公共列表)
@@ -252,6 +263,8 @@ class Pan123Database:
         if self.conn:
             self.conn.close()
 
+
+
 if __name__ == "__main__":
 
     db = Pan123Database(
@@ -274,7 +287,7 @@ if __name__ == "__main__":
         print("无公开资源")
 
     # 测试导入新数据库
-    new_db_path = "./assets/latest.db"
-    db.importDatabase(new_db_path)
+    # new_db_path = "./assets/latest.db"
+    # db.importDatabase(new_db_path)
 
     db.close()

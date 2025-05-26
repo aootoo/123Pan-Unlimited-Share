@@ -1,0 +1,16 @@
+{
+    "DATABASE_PATH": "./assets/PAN123DATABASE.db",
+    
+    "PORT": 33333,
+
+    "CHANNEL_NAME": "",
+    "MESSAGE_AFTER_ID": 8050,
+
+    "ADMIN_ENTRY": "admin_abcdefg",
+    "ADMIN_USERNAME": "admin",
+    "ADMIN_PASSWORD": "123456",
+
+    "SECRET_KEY": "114514",
+
+    "DEBUG": false
+}

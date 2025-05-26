@@ -1,5 +1,7 @@
 import hashlib
 import requests
+import os
+import json
 
 # 构建AbsPath
 def makeAbsPath(fullDict, parentFileId=0, debug=False):
@@ -68,8 +70,29 @@ def isAvailableRegion():
         print(f"当前IP地址支持使用：\n\n{response}")
         return True
 
-def downloadLatestDatabase():
-    url = 'https://raw.githubusercontent.com/realcwj/123Pan-Unlimited-Share/refs/heads/main/assets/PAN123DATABASE.db' 
-    r = requests.get(url)
-    with open("./assets/latest.db", "wb") as f:
-        f.write(r.content)
+def loadSettings(keyword):
+    if os.path.exists("./settings.json"):
+        with open("./settings.json", "r", encoding="utf-8") as f:
+            data = json.loads(f.read())
+        return data.get(keyword)
+    else:
+        print("没有发现 settings.json 文件, 已重新生成, 请填写参数后再运行!")
+        with open("./settings.json", "w", encoding="utf-8") as f:
+            f.write("""{
+    "DATABASE_PATH": "./assets/PAN123DATABASE.db",
+    
+    "PORT": 33333,
+
+    "CHANNEL_NAME": "",
+    "MESSAGE_AFTER_ID": 8050,
+
+    "ADMIN_ENTRY": "admin_abcdefg",
+    "ADMIN_USERNAME": "admin",
+    "ADMIN_PASSWORD": "123456",
+
+    "SECRET_KEY": "114514",
+
+    "DEBUG": false
+}""")
+        input("按任意键结束")
+        exit(0)

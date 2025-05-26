@@ -9,27 +9,19 @@ import unicodedata
 from functools import wraps
 
 from Pan123 import Pan123
-from telegramSpider import startSpider
-from utils import isAvailableRegion, getStringHash
+from utils import getStringHash, loadSettings, isAvailableRegion
 from Pan123Database import Pan123Database
 from generateContentTree import generateContentTree
 
-# 调试模式
-DEBUG = False
-# Admin 界面的入口路径, 需要访问 http://{IP}:{PORT}/{ADMIN_ENTRY}/login 才能进入管理员登录页面
-# 以下面的为例，用户需要访问 http://127.0.0.1:33333/admin_abcdefg/login 才能进入管理员登录页面
-ADMIN_ENTRY = "admin_abcdefg" 
-# Admin 用户名和密码
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "123456"
-
-# Telegram 的那个频道名称，大家应该都知道是telegram的哪个群, 自己填入（@xxxx的xxxx部分）, GitHub不明说了
-CHANNEL_NAME = "" # 程序会从该频道爬取资源、自动导入到公共资源库中
-MESSAGE_AFTER_ID = 8050 # 从 8050 开始爬, 因为该频道之前的分享内容【全】【都】【失】【效】【了】
-PORT = 33333 # 网页运行端口
+DEBUG = loadSettings("DEBUG")
+ADMIN_ENTRY = loadSettings("ADMIN_ENTRY")
+ADMIN_USERNAME = loadSettings("ADMIN_USERNAME")
+ADMIN_PASSWORD = loadSettings("ADMIN_PASSWORD")
+PORT = loadSettings("PORT")
+DATABASE_PATH = loadSettings("DATABASE_PATH") 
 
 app = Flask(__name__)
-app.secret_key = '114514' # 密钥
+app.secret_key = loadSettings("SECRET_KEY")
 
 def custom_secure_filename_part(name_str):
     """
@@ -162,7 +154,7 @@ def api_export():
 
     def generate_export_stream():
         driver = Pan123(debug=DEBUG)
-        db = Pan123Database(debug=DEBUG) 
+        db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG) 
         login_success_flag = False
         final_b64_string_data = None
         short_share_code_result = None
@@ -276,7 +268,7 @@ def api_import():
 
     def generate_import_stream():
         driver = Pan123(debug=DEBUG)
-        db = Pan123Database(debug=DEBUG)
+        db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
         login_success_flag = False
         
         actual_base64_data_to_import = None
@@ -399,7 +391,7 @@ def api_link():
 
     def generate_link_export_stream():
         driver = Pan123(debug=DEBUG) 
-        db = Pan123Database(debug=DEBUG)
+        db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
         final_b64_string_data = None
         short_share_code_result = None
         pan123_op_successful = False
@@ -462,7 +454,7 @@ def api_link():
 
 @app.route('/api/list_public_shares', methods=['GET'])
 def list_public_shares_from_db():
-    db = Pan123Database(debug=DEBUG)
+    db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
     try:
         # 根据 database.py 的 listData 修改，它返回(codeHash, rootFolderName, shareCode, timeStamp, visibleFlag)
         # 但前端只需要 (codeHash, rootFolderName, timeStamp) 用于公开列表
@@ -495,7 +487,7 @@ def api_get_content_tree():
     if code_hash:
         db = None  # 初始化为 None
         try:
-            db = Pan123Database(debug=DEBUG)
+            db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
             # db.getDataByHash 返回 [(rootFolderName, shareCode, visibleFlag)] 或 None
             share_data_tuple_list = db.getDataByHash(code_hash) 
             if share_data_tuple_list and len(share_data_tuple_list) > 0:
@@ -531,7 +523,7 @@ def api_get_content_tree():
 @app.route(f'/api/{ADMIN_ENTRY}/get_shares', methods=['GET'])
 @admin_required
 def api_admin_get_shares():
-    db = Pan123Database(debug=DEBUG)
+    db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
     try:
         all_shares_raw = db.listAllDataForAdmin() # (codeHash, rootFolderName, shareCode, timeStamp, visibleFlag)
         
@@ -581,7 +573,7 @@ def api_admin_update_share_status():
     else:
         return jsonify({"success": False, "message": "无效的状态值。"}), 400
 
-    db = Pan123Database(debug=DEBUG)
+    db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
     try:
         if db.updateVisibleFlag(code_hash, new_visible_flag):
             return jsonify({"success": True, "message": "状态更新成功。"}), 200
@@ -607,7 +599,7 @@ def api_admin_update_share_name():
     if not new_name_cleaned:
         return jsonify({"success": False, "message": "提供的名称无效或清理后为空。"}), 400
 
-    db = Pan123Database(debug=DEBUG)
+    db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
     try:
         if db.updateRootFolderName(code_hash, new_name_cleaned):
             return jsonify({"success": True, "message": "名称更新成功。", "cleanedName": new_name_cleaned}), 200
@@ -628,7 +620,7 @@ def api_admin_delete_share():
     if not code_hash:
         return jsonify({"success": False, "message": "缺少参数 codeHash。"}), 400
 
-    db = Pan123Database(debug=DEBUG)
+    db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
     try:
         if db.deleteData(code_hash):
             return jsonify({"success": True, "message": "记录删除成功。"}), 200
@@ -694,22 +686,23 @@ def admin_logout():
     return resp
 
 if __name__ == '__main__':
-    # 当你看到这里, 请不要尝试删除本段代码, 强行运行
-    
-    # 不支持的IP地址是没法运行后续程序的!
-    # 不支持的IP地址是没法运行后续程序的!
-    # 不支持的IP地址是没法运行后续程序的!
 
-    # 如果是中国大陆的IP, 退出程序
-    if not isAvailableRegion():
+    # 检查 IP
+    if isAvailableRegion():
+        print("IP检查通过")
+    else:
+        print(f"不支持中国大陆IP用户使用, 请检查您的IP地址")
+        input("按任意键结束")
         exit(0)
 
-    # 从Telegram频道爬取数据, 导入到公共资源库
-    startSpider(
-        channel_name=CHANNEL_NAME,
-        message_after_id=MESSAGE_AFTER_ID,
-        debug=DEBUG
-    )
+    # 下载最新数据库
+    db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
+    print("正在下载最新数据库")
+    latest_db_path = db.downloadLatestDatabase()
+    print("正在导入最新数据库")
+    db.importDatabase(latest_db_path)
+    db.close()
 
     # 启动Flask应用
-    app.run(debug=DEBUG, host='0.0.0.0', port=PORT, threaded=True) # threaded=True 是Flask的默认值之一，但显式写出无害
+    print("启动网页服务")
+    app.run(debug=DEBUG, host='0.0.0.0', port=PORT, threaded=True)

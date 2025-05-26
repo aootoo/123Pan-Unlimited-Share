@@ -32,9 +32,9 @@ if __name__ == "__main__":
     mode = "folder"
     # mode = "file:iso"
     # 分享链接
-    shareKey = "lyn8Vv-Qjmod"
+    shareKey = ""
     # 分享密码
-    sharePwd = "BDCR"
+    sharePwd = ""
     # 文件夹ID
     parentFileId = 0
     # 保存到哪个文件夹里
