@@ -102,9 +102,8 @@ body {
     margin-bottom: 1rem; 
 }
 
-.custom-btn {
-    background-color: var(--primary-dark-blue);
-    border-color: var(--primary-dark-blue);
+/* 通用按钮样式（包括custom-btn 和 view-content-tree-btn的基础样式） */
+.custom-btn, .view-content-tree-btn {
     color: white;
     padding: 0.9rem 1.5rem; 
     font-size: 1.05rem;
@@ -114,27 +113,54 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-top: 1.5rem; 
 }
 
+/* “开始导入”、“从链接导出”等主要操作按钮 */
+.custom-btn {
+    background-color: var(--primary-dark-blue);
+    border-color: var(--primary-dark-blue);
+    margin-top: 1.5rem; 
+}
 .custom-btn.w-100 { 
     width: 100%;
 }
-
 .custom-btn:hover, .custom-btn:focus {
     background-color: var(--primary-dark-blue-hover);
     border-color: var(--primary-dark-blue-hover);
-    color: white;
     transform: translateY(-2px);
     box-shadow: 0 6px 12px rgba(0, 68, 148, 0.3);
 }
-
 .custom-btn:active {
     background-color: var(--button-active-green) !important; 
     border-color: var(--button-active-green-border) !important; 
-    color: white !important;
     transform: translateY(0);
     box-shadow: 0 3px 6px var(--button-active-green-shadow) !important;
+}
+
+/* 查看目录树按钮 (.view-content-tree-btn) 的特定样式 */
+.view-content-tree-btn {
+    background-color: var(--primary-dark-blue); /* 默认：蓝色背景白色文字 */
+    border: 1px solid var(--primary-dark-blue); /* 边框颜色与背景一致 */
+    padding: 0.375rem 0.75rem; /* 适配 Bootstrap .btn-sm 的内边距 */
+    font-size: 1rem; /*  调整图标大小，如果需要可以通过 i 标签的 font-size 控制 */
+    line-height: 1.5; /* Bootstrap .btn 的默认行高 */
+}
+.view-content-tree-btn:hover, .view-content-tree-btn:focus {
+    background-color: var(--primary-dark-blue-hover); /* 悬停：深蓝色背景白色文字 */
+    border-color: var(--primary-dark-blue-hover);
+    color: white; /* 确保文字颜色依然是白色 */
+}
+.view-content-tree-btn:active {
+    background-color: var(--button-active-green) !important; /* 按下：绿色背景 */
+    border-color: var(--button-active-green-border) !important;
+    color: white !important; /* 按下时文字依然是白色 */
+     box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125); /* Bootstrap 按下效果 */
+}
+.public-share-item .view-content-tree-btn {
+    /* 此处可以添加特定于列表内按钮的微调，如更小的 padding */
+    padding: 0.2rem 0.4rem; 
+    font-size: 0.8rem; 
+    line-height: 1;
 }
 
 .alert {
@@ -203,7 +229,7 @@ body {
 
 /* 公共资源列表项样式 */
 .public-share-item {
-    cursor: pointer;
+    /* cursor: pointer; -- 现在由内部 textContainer 控制选择导入 */
     padding: 0.75rem 1rem;
     border: 1px solid #e0e0e0;
     border-radius: var(--border-radius-elements); 
@@ -256,6 +282,35 @@ body {
     background-color: #fff; 
 }
 
+/* 目录树模态框样式 */
+#contentTreeModal .modal-body {
+    padding-bottom: 0.5rem; /* 减少底部内边距，为内容区域腾出更多空间 */
+}
+#contentTreeDisplayArea {
+    max-height: calc(70vh - 150px); /* 视口高度减去模态框头部、脚部和搜索框的大致高度 */
+    min-height: 200px; /* 保证一个最小高度 */
+    overflow-y: auto;
+    font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace;
+    font-size: 0.8rem; /* 更紧凑的字体大小 */
+    color: #333;
+    background-color: #f8f9fa; /* 轻微背景色以区分 */
+    border: 1px solid #dee2e6;
+    border-radius: var(--border-radius-elements);
+    padding: 0.5rem;
+}
+#contentTreeDisplayArea div { /* 每一行目录 */
+    padding: 1px 5px; /* 进一步减少行间距和内边距 */
+    white-space: pre; /* 保持空格和缩进，但允许自动换行长文件名 */
+    word-break: break-all; /* 如果某个文件名特别长，则强制换行 */
+    border-bottom: 1px dotted #eee; /* 非常浅的分隔线，可选 */
+}
+#contentTreeDisplayArea div:last-child {
+    border-bottom: none;
+}
+#contentTreeSearchInput {
+    font-size: 0.9rem; /* 搜索框字体大小 */
+}
+
 /* 修改：“返回首页”和“返回用户首页”等按钮的悬停效果，颜色与“标准1”一致 */
 /* 选择器针对具体的按钮实例或其容器，以避免不必要的全局覆盖 */
 .content-card .btn.btn-sm.btn-outline-secondary:hover,
@@ -280,7 +335,7 @@ body {
         font-size: 1.5rem; 
         margin-bottom: 1.5rem;
     }
-    .form-control, .custom-btn, .btn { 
+    .form-control, .custom-btn, .btn, .view-content-tree-btn { /* 应用到所有相关按钮 */
         font-size: 0.95rem; 
         padding-top: 0.8rem; 
         padding-bottom: 0.8rem;
@@ -288,6 +343,11 @@ body {
     .custom-btn, .btn.custom-btn { 
          padding-left: 1rem;
          padding-right: 1rem;
+    }
+    /* 确保 view-content-tree-btn 在小屏幕上也有合适的 padding */
+    .view-content-tree-btn {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
     }
     .form-group, .mb-3 {
         margin-bottom: 1.25rem !important;
@@ -298,6 +358,9 @@ body {
     }
     .tab-content {
         padding: 1rem 0.75rem;
+    }
+    #contentTreeDisplayArea {
+        font-size: 0.75rem; /* 在小屏幕上进一步缩小目录字体 */
     }
 }
 
@@ -312,15 +375,19 @@ body {
     .form-label {
         font-size: 0.9rem;
     }
-    .form-control, .custom-btn, .btn { 
+    .form-control, .custom-btn, .btn, .view-content-tree-btn { /* 应用到所有相关按钮 */
         font-size: 0.9rem;
     }
     .nav-tabs .nav-link {
         font-size: 0.85rem;
         padding: 0.5rem 0.75rem;
     }
-    .custom-btn svg, .btn svg { 
+    .custom-btn svg, .btn svg, .view-content-tree-btn svg, .view-content-tree-btn i { /* 确保图标大小也响应 */
         width: 1em;
         height: 1em;
+    }
+    .input-group .btn, .input-group .view-content-tree-btn { /* 确保 input-group 内的按钮在小屏上大小合适 */
+        font-size: 0.85rem; 
+        padding: 0.375rem 0.75rem;
     }
 }

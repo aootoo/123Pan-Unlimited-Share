@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>123云盘无限制分享工具 - 导入到私人网盘 - GitHub@realcwj</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -59,7 +60,12 @@
                     <div class="tab-pane fade" id="shortCodeContent" role="tabpanel" aria-labelledby="short-code-tab">
                         <div class="mb-3 mt-3">
                             <label for="shortCodeInput" class="form-label">短分享码</label>
-                            <input type="text" class="form-control" id="shortCodeInput" name="shortCodeInput" placeholder="粘贴短分享码">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="shortCodeInput" name="shortCodeInput" placeholder="粘贴短分享码">
+                                <button class="btn view-content-tree-btn" type="button" id="viewTreeForShortCodeBtn" title="查看目录结构">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
                             <div class="form-text">由本站生成的短分享码。</div>
                             <div class="form-text"><b>注意：不同网站生成的短分享码数据不互通</b></div>
                         </div>
@@ -77,10 +83,15 @@
                             </button>
                             <div class="form-text">选择文件后，会自动填充下方的“长分享码”和“根目录名”。</div>
                         </div>
-                        <div class="mb-3 mt-3">
+                       <div class="mb-3 mt-3">
                             <label for="longBase64DataInput" class="form-label">长分享码 (Base64)</label>
                             <textarea class="form-control" id="longBase64DataInput" name="longBase64DataInput" rows="4" placeholder="粘贴完整的分享码内容 (即 *.123share 文件里的内容)"></textarea>
-                            <div class="form-text">即 <code>*.123share</code> 文件的内容。</div>
+                            <div class="d-flex justify-content-between align-items-center mt-1">
+                                <small class="form-text text-muted mb-0 flex-grow-1">即 <code>*.123share</code> 文件的内容。</small>
+                                <button type="button" class="btn view-content-tree-btn ms-2" id="viewTreeForLongCodeBtn" title="查看目录结构">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label for="longRootFolderNameInput" class="form-label">根目录名</label>
@@ -108,11 +119,34 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="contentTreeModal" tabindex="-1" aria-labelledby="contentTreeModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="contentTreeModalLabel">查看文件目录结构</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <input type="text" class="form-control form-control-sm" id="contentTreeSearchInput" placeholder="搜索文件名...">
+                    </div>
+                    <div id="contentTreeDisplayArea">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         window.APP_CONFIG = {
             apiImportUrl: "{{ url_for('api_import') }}",
-            apiListPublicSharesUrl: "{{ url_for('list_public_shares_from_db') }}"
+            apiListPublicSharesUrl: "{{ url_for('list_public_shares_from_db') }}",
+            apiGetContentTreeUrl: "{{ url_for('api_get_content_tree') }}" // 新增API URL
         };
     </script>
     <script src="{{ url_for('static', filename='js/cookieUtils.js') }}"></script>

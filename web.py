@@ -12,6 +12,7 @@ from Pan123 import Pan123
 from telegramSpider import startSpider
 from utils import isAvailableRegion, getStringHash
 from Pan123Database import Pan123Database
+from generateContentTree import generateContentTree
 
 # 调试模式
 DEBUG = False
@@ -26,7 +27,6 @@ ADMIN_PASSWORD = "123456"
 CHANNEL_NAME = "" # 程序会从该频道爬取资源、自动导入到公共资源库中
 MESSAGE_AFTER_ID = 8050 # 从 8050 开始爬, 因为该频道之前的分享内容【全】【都】【失】【效】【了】
 PORT = 33333 # 网页运行端口
-
 
 app = Flask(__name__)
 app.secret_key = '114514' # 密钥
@@ -480,6 +480,52 @@ def list_public_shares_from_db():
         return jsonify({"success": False, "message": f"获取公共分享列表失败: {str(e)}"}), 500
     finally:
         db.close()
+
+@app.route('/api/get_content_tree', methods=['POST'])
+def api_get_content_tree():
+    data = request.get_json()
+    if not data:
+        return jsonify({"isFinish": False, "message": "错误的请求：没有提供JSON数据。"}), 400
+
+    code_hash = data.get('codeHash')
+    share_code_b64_from_request = data.get('shareCode') # 重命名以区分从数据库获取的
+    
+    target_share_code = None
+
+    if code_hash:
+        db = None  # 初始化为 None
+        try:
+            db = Pan123Database(debug=DEBUG)
+            # db.getDataByHash 返回 [(rootFolderName, shareCode, visibleFlag)] 或 None
+            share_data_tuple_list = db.getDataByHash(code_hash) 
+            if share_data_tuple_list and len(share_data_tuple_list) > 0:
+                target_share_code = share_data_tuple_list[0][1] # (rootFolderName, shareCode, visibleFlag) 中 的 shareCode
+            else:
+                return jsonify({"isFinish": False, "message": f"错误：未找到与提供的短分享码 {code_hash[:8]}... 对应的分享内容。"}), 404
+        except Exception as e:
+            app.logger.error(f"通过短分享码 {code_hash} 查询数据库时出错: {e}", exc_info=True)
+            return jsonify({"isFinish": False, "message": f"数据库查询错误: {str(e)}"}), 500
+        finally:
+            if db: # 仅当db对象成功创建后才调用close
+                 db.close()
+    elif share_code_b64_from_request:
+        target_share_code = share_code_b64_from_request
+    else:
+        return jsonify({"isFinish": False, "message": "错误：必须提供 'codeHash' 或 'shareCode'。"}), 400
+
+    if not target_share_code:
+        # 此情况理论上已被前述逻辑覆盖，但作为安全回退
+        return jsonify({"isFinish": False, "message": "错误：未能获得有效的分享码以生成目录树。"}), 500
+        
+    try:
+        # generateContentTree 函数期望接收 base64 编码的字符串数据
+        # 并返回一个字典，格式为: {"isFinish": True/False, "message": 结果列表或错误信息字符串}
+        result_dict = generateContentTree(target_share_code)
+        return jsonify(result_dict)
+    except Exception as e:
+        app.logger.error(f"调用 generateContentTree 时发生错误: {e}", exc_info=True)
+        # 确保返回的错误也符合 {"isFinish": False, "message": "错误信息"} 的结构
+        return jsonify({"isFinish": False, "message": f"生成目录树时发生服务器内部错误: {str(e)}"}), 500
 
 # --- Admin API 端点 ---
 @app.route(f'/api/{ADMIN_ENTRY}/get_shares', methods=['GET'])

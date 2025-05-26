@@ -21,8 +21,15 @@ document.addEventListener('DOMContentLoaded', async function () {
     const shareFileInput = document.getElementById('shareFileInput');
     const selectShareFileButton = document.getElementById('selectShareFileButton');
 
+    // Content Tree Modal Elements
+    const contentTreeModalEl = document.getElementById('contentTreeModal');
+    const contentTreeSearchInput = document.getElementById('contentTreeSearchInput');
+    const contentTreeDisplayArea = document.getElementById('contentTreeDisplayArea');
+    const bsContentTreeModal = new bootstrap.Modal(contentTreeModalEl);
+
     const API_IMPORT_URL = window.APP_CONFIG.apiImportUrl || '/api/import';
     const API_LIST_PUBLIC_SHARES_URL = window.APP_CONFIG.apiListPublicSharesUrl || '/api/list_public_shares';
+    const API_GET_CONTENT_TREE_URL = window.APP_CONFIG.apiGetContentTreeUrl || '/api/get_content_tree'; // 新增
 
     let allPublicShares = [];
     let currentActiveTabId = 'publicRepoContent'; // 默认活动标签页ID
@@ -165,30 +172,43 @@ document.addEventListener('DOMContentLoaded', async function () {
 
         shares.forEach(share => {
             const item = document.createElement('div');
-            item.classList.add('public-share-item');
+            item.classList.add('public-share-item', 'd-flex', 'justify-content-between', 'align-items-center');
             
+            const textContainer = document.createElement('div');
+            textContainer.style.cursor = 'pointer'; // 使文本区域也可点击选择
+
             const nameSpan = document.createElement('span');
             nameSpan.classList.add('share-name');
             nameSpan.textContent = share.name;
-            item.appendChild(nameSpan);
+            textContainer.appendChild(nameSpan);
 
             const tsSpan = document.createElement('span');
             tsSpan.classList.add('share-timestamp');
             const date = new Date(share.timestamp);
             tsSpan.textContent = `更新时间: ${date.toLocaleString()}`;
-            item.appendChild(tsSpan);
+            textContainer.appendChild(tsSpan);
 
-            item.dataset.codehash = share.codeHash;
-            item.dataset.rootname = share.name; 
+            item.appendChild(textContainer);
 
-            item.addEventListener('click', function() {
+            const viewTreeBtn = document.createElement('button');
+            viewTreeBtn.type = 'button';
+            viewTreeBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'view-content-tree-btn');
+            viewTreeBtn.innerHTML = '<i class="bi bi-search"></i>';
+            viewTreeBtn.dataset.codehash = share.codeHash;
+            viewTreeBtn.title = "查看目录结构";
+            viewTreeBtn.style.flexShrink = '0'; // 防止按钮在名称过长时被挤压
+
+            item.appendChild(viewTreeBtn);
+            
+            // 点击文本区域选择资源进行导入
+            textContainer.addEventListener('click', function() {
                 document.querySelectorAll('.public-share-item.active').forEach(activeItem => {
                     activeItem.classList.remove('active');
                 });
-                this.classList.add('active'); 
+                item.classList.add('active'); // 高亮整个item
 
-                selectedPublicCodeHashInput.value = this.dataset.codehash;
-                updateStatusMessage(statusMessageEl, `已选择公共资源: ${this.dataset.rootname}`, 'secondary');
+                selectedPublicCodeHashInput.value = share.codeHash;
+                updateStatusMessage(statusMessageEl, `已选择公共资源: ${share.name}`, 'secondary');
                 logOutputEl.textContent = ''; 
             });
             publicSharesListDiv.appendChild(item);
@@ -259,6 +279,121 @@ document.addEventListener('DOMContentLoaded', async function () {
         });
     }
     // --- 文件选择处理结束 ---
+
+    // --- 内容目录树相关逻辑 ---
+    async function fetchAndDisplayContentTree(params) {
+        const payload = {};
+        if (params.codeHash) payload.codeHash = params.codeHash;
+        if (params.shareCode) payload.shareCode = params.shareCode;
+
+        if (!payload.codeHash && !payload.shareCode) {
+            // 此情况不应发生，因为调用前已校验
+            contentTreeDisplayArea.innerHTML = '<p class="text-center text-danger">错误: 缺少必要的参数。</p>';
+            bsContentTreeModal.show();
+            return;
+        }
+
+        try {
+            // 在显示模态框之前清空旧内容并设置加载状态
+            contentTreeDisplayArea.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">加载中...</span></div> <span class="ms-2 text-muted">正在加载目录结构...</span></div>';
+            contentTreeSearchInput.value = '';
+            bsContentTreeModal.show();
+
+            const response = await fetch(API_GET_CONTENT_TREE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+            
+            // 确保在填充内容前清除加载提示
+            contentTreeDisplayArea.innerHTML = '';
+
+            if (result.isFinish === true) {
+                if (Array.isArray(result.message) && result.message.length > 0) {
+                    const treeHtml = result.message.map(line => `<div>${escapeHtml(line)}</div>`).join('');
+                    contentTreeDisplayArea.innerHTML = treeHtml;
+                } else if (Array.isArray(result.message) && result.message.length === 0) {
+                    contentTreeDisplayArea.innerHTML = '<p class="text-center text-muted p-3">此分享内容为空。</p>';
+                }
+                 else {
+                    contentTreeDisplayArea.innerHTML = '<p class="text-center text-muted p-3">目录为空或无法解析。</p>';
+                }
+            } else {
+                contentTreeDisplayArea.innerHTML = `<p class="text-center text-danger p-3">错误: ${escapeHtml(result.message)}</p>`;
+            }
+        } catch (error) {
+            console.error('获取目录树失败:', error);
+            contentTreeDisplayArea.innerHTML = `<p class="text-center text-danger p-3">请求目录树失败: ${error.message}</p>`;
+            if (!bsContentTreeModal._isShown) { // 如果请求失败前模态框未显示，则显示它以展示错误
+                bsContentTreeModal.show();
+            }
+        }
+    }
+
+    // 事件委托处理所有 "view-content-tree-btn" 按钮的点击
+    document.getElementById('importTabsContent').addEventListener('click', function(event) {
+        const target = event.target.closest('.view-content-tree-btn');
+        if (!target) return;
+
+        let codeHash = null;
+        let shareCode = null;
+
+        // 根据按钮ID或dataset确定是哪个按钮触发，并获取相应的值
+        if (target.id === 'viewTreeForShortCodeBtn') {
+            codeHash = shortCodeInput.value.trim();
+            if (!codeHash) { 
+                alert('请输入短分享码。'); 
+                statusMessageEl.textContent = '请输入短分享码以查看目录。';
+                statusMessageEl.className = 'alert alert-warning';
+                return; 
+            }
+        } else if (target.id === 'viewTreeForLongCodeBtn') {
+            shareCode = longBase64DataInput.value.trim();
+            if (!shareCode) { 
+                alert('请输入长分享码（或从文件加载）。');
+                statusMessageEl.textContent = '请输入长分享码以查看目录。';
+                statusMessageEl.className = 'alert alert-warning';
+                return; 
+            }
+        } else if (target.dataset.codehash) { // 来自公共资源列表的按钮
+            codeHash = target.dataset.codehash;
+        } else {
+            // 未知按钮来源，理论上不应发生
+            console.warn('未知的查看目录按钮被点击:', target);
+            return;
+        }
+
+        if (codeHash || shareCode) {
+            fetchAndDisplayContentTree({ codeHash, shareCode });
+        }
+    });
+
+    // 目录树模态框内的搜索功能
+    contentTreeSearchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        const lines = contentTreeDisplayArea.querySelectorAll('div'); // 假设每行是一个div
+        lines.forEach(lineEl => {
+            const text = lineEl.textContent.toLowerCase();
+            if (text.includes(searchTerm)) {
+                lineEl.style.display = '';
+            } else {
+                lineEl.style.display = 'none';
+            }
+        });
+    });
+
+    // 当模态框隐藏时，清空搜索框并重置行显示（如果之前有搜索过滤）
+    contentTreeModalEl.addEventListener('hidden.bs.modal', function () {
+        contentTreeSearchInput.value = '';
+        const lines = contentTreeDisplayArea.querySelectorAll('div');
+        lines.forEach(lineEl => {
+            lineEl.style.display = ''; // 重置所有行的显示
+        });
+        contentTreeDisplayArea.innerHTML = ''; // 完全清空内容，下次打开时重新加载
+    });
+    // --- 内容目录树相关逻辑结束 ---
 
     fetchPublicShares(); // 初始加载公共资源列表
 });
