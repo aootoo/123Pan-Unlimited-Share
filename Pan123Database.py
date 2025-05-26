@@ -33,10 +33,10 @@ class Pan123Database:
         """)
         self.conn.commit()
 
-    def importPublicOkFiles(self, folder_path="./public/ok"):
-        # 检查 ./public/ok 文件夹内是否存在 *.123share 文件, 如果存在, 则挨个读取, 并将其加入数据库, 随后删除该文件
+    def importShareFiles(self, folder_path="./share"):
+        # 检查 ./share 文件夹内是否存在 *.123share 文件, 如果存在, 则挨个读取, 并将其加入数据库, 随后删除该文件
         # 这个函数是为了兼容旧版本
-        if not os.path.exists(folder_path): # 如果 public/ok 不存在了，就直接返回
+        if not os.path.exists(folder_path): # 如果 share 不存在了，就直接返回
             print(f"兼容模式：未找到 {folder_path} 文件夹，跳过旧文件导入。")
             return
             
@@ -71,6 +71,42 @@ class Pan123Database:
                 # os.remove(file_path_to_read)
             except Exception as e:
                 print(f"兼容模式：处理 {filename_base}.123share 时发生错误: {e}")
+
+    def importDatabase(self, database_path:str):
+        # 导入一个数据库文件, 并将其数据合并到当前数据库
+        # 导入的数据库文件格式与当前数据库相同
+        # 只导入当前数据库没有的 codeHash 的条目的数据
+        
+        # 打开要导入的数据库文件
+        conn_to_import = sqlite3.connect(database_path)
+        database_to_import = conn_to_import.cursor()
+
+        # 从要导入的数据库中获取所有 codeHash
+        database_to_import.execute("SELECT codeHash FROM PAN123DATABASE")
+        codeHashes_to_import = [row[0] for row in database_to_import.fetchall()]
+        
+        # 遍历要导入的数据库中的每一条记录
+        for codeHash in tqdm(codeHashes_to_import, desc=f"导入数据库: {database_path}"):
+            # 检查当前数据库中是否已存在相同的 codeHash
+            self.database.execute("SELECT 1 FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
+            if self.database.fetchone():
+                if self.debug:
+                    print(f"跳过导入 {codeHash}，因为它已存在于当前数据库。")
+                continue  # 跳过已存在的记录
+
+            # 从要导入的数据库中获取该记录的其他字段
+            database_to_import.execute("SELECT rootFolderName, visibleFlag, shareCode FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
+            rootFolderName, visibleFlag, shareCode = database_to_import.fetchone()
+
+            # 插入到当前数据库
+            self.insertData(codeHash, rootFolderName, visibleFlag, shareCode)
+            if self.debug:
+                print(f"导入 {codeHash}，rootFolderName: {rootFolderName}, visibleFlag: {visibleFlag}")
+
+        # 关闭导入的数据库连接
+        conn_to_import.close()
+        if self.debug:
+            print(f"导入了 {len(codeHashes_to_import)} 条记录到当前数据库。")
 
     def insertData(self, codeHash:str, rootFolderName:str, visibleFlag:bool, shareCode:str):
         # visibleFlag: True: 公开, None: 公开(但是待审核), False: 私密 (仅生成短分享码，不加入公共列表)
@@ -217,22 +253,28 @@ class Pan123Database:
             self.conn.close()
 
 if __name__ == "__main__":
-    
-    db = Pan123Database(debug=False)
-    
-    
-    # 从 ./public/ok 导入文件 (兼容旧版)
-    db.importPublicOkFiles(folder_path="./export")
-    
+
+    db = Pan123Database(
+        dbpath="./assets/test.db",
+        debug=True
+        )
+
+    # 从 ./export 导入文件 (兼容旧版)
+    db.importShareFiles(folder_path="./export")
+
     print()
     print("--- 测试 listData (公开资源) ---")
     print()
-    
+
     public_shares = db.listData()
     if public_shares:
         for item in public_shares:
             print(item) # (codeHash, rootFolderName, timeStamp)
     else:
         print("无公开资源")
+
+    # 测试导入新数据库
+    new_db_path = "./assets/latest.db"
+    db.importDatabase(new_db_path)
 
     db.close()

@@ -67,3 +67,9 @@ def isAvailableRegion():
     else:
         print(f"当前IP地址支持使用：\n\n{response}")
         return True
+
+def downloadLatestDatabase():
+    url = 'https://raw.githubusercontent.com/realcwj/123Pan-Unlimited-Share/refs/heads/main/assets/PAN123DATABASE.db' 
+    r = requests.get(url)
+    with open("./assets/latest.db", "wb") as f:
+        f.write(r.content)
