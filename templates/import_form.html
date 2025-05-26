@@ -37,7 +37,7 @@
                         <button class="nav-link" id="short-code-tab" data-bs-toggle="tab" data-bs-target="#shortCodeContent" type="button" role="tab" aria-controls="shortCodeContent" aria-selected="false">从短分享码导入</button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="long-code-tab" data-bs-toggle="tab" data-bs-target="#longCodeContent" type="button" role="tab" aria-controls="longCodeContent" aria-selected="false">从长分享码导入</button>
+                        <button class="nav-link" id="long-code-tab" data-bs-toggle="tab" data-bs-target="#longCodeContent" type="button" role="tab" aria-controls="longCodeContent" aria-selected="false">从长分享码/文件导入</button>
                     </li>
                 </ul>
 
@@ -66,6 +66,17 @@
                     </div>
 
                     <div class="tab-pane fade" id="longCodeContent" role="tabpanel" aria-labelledby="long-code-tab">
+                        <div class="mb-3">
+                            <input type="file" id="shareFileInput" accept=".123share" style="display: none;">
+                            <button type="button" id="selectShareFileButton" class="btn btn-primary custom-btn w-100" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-file-earmark-arrow-up me-2" viewBox="0 0 16 16">
+                                  <path d="M8.5 11.5a.5.5 0 0 1-1 0V7.707L6.354 8.854a.5.5 0 1 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 7.707z"/>
+                                  <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                                </svg>
+                                选择 .123share 文件
+                            </button>
+                            <div class="form-text">选择文件后，会自动填充下方的“长分享码”和“根目录名”。</div>
+                        </div>
                         <div class="mb-3 mt-3">
                             <label for="longBase64DataInput" class="form-label">长分享码 (Base64)</label>
                             <textarea class="form-control" id="longBase64DataInput" name="longBase64DataInput" rows="4" placeholder="粘贴完整的分享码内容 (即 *.123share 文件里的内容)"></textarea>

@@ -184,15 +184,15 @@ body {
 /* 修改：未选中的Tab按钮，鼠标悬停在上方，颜色与“标准1”一致 */
 .nav-tabs .nav-link:not(.active):hover {
     background-color: var(--standard-light-gray-hover); /* 标准1的浅灰色 */
-    border-color: var(--standard-light-gray-hover) var(--standard-light-gray-hover) #dee2e6; /* 边框协调，底部用中性色 */
+    border-color: var(--standard-light-gray-hover) var(--standard-light-gray-hover) var(--border-color); /* 边框协调，底部用中性色 */
     color: var(--primary-dark-blue); /* 文字颜色保持深蓝以确保对比 */
 }
 .nav-tabs {
-    border-bottom-color: var(--primary-dark-blue); 
+    border-bottom-color: var(--border-color); 
 }
 
 .tab-content {
-    border: 1px solid var(--primary-dark-blue); 
+    border: 1px solid var(--border-color); 
     border-top: 0;
     padding: 1.5rem 1.25rem; 
     border-bottom-left-radius: var(--border-radius-elements);
