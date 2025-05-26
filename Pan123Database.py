@@ -27,7 +27,7 @@ class Pan123Database:
                 rootFolderName TEXT NOT NULL,
                 visibleFlag BOOLEAN,
                 shareCode TEXT NOT NULL,
-                timeStamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                timeStamp DATETIME DEFAULT (datetime('now', '+8 hours'))
             )
         """)
         self.conn.commit()
@@ -223,7 +223,7 @@ if __name__ == "__main__":
     
     
     # 从 ./public/ok 导入文件 (兼容旧版)
-    # db.importPublicOkFiles()
+    db.importPublicOkFiles()
     
     print()
     print("--- 测试 listData (公开资源) ---")
