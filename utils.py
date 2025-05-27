@@ -2,6 +2,7 @@ import hashlib
 import requests
 import os
 import json
+import yaml
 
 # 构建AbsPath
 def makeAbsPath(fullDict, parentFileId=0, debug=False):
@@ -71,28 +72,34 @@ def isAvailableRegion():
         return True
 
 def loadSettings(keyword):
-    if os.path.exists("./settings.json"):
-        with open("./settings.json", "r", encoding="utf-8") as f:
-            data = json.loads(f.read())
+    if os.path.exists("./settings.yaml"):
+        with open("./settings.yaml", "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f.read())
         return data.get(keyword)
     else:
-        print("没有发现 settings.json 文件, 已重新生成, 请填写参数后再运行!")
-        with open("./settings.json", "w", encoding="utf-8") as f:
-            f.write("""{
-    "DATABASE_PATH": "./assets/PAN123DATABASE.db",
-    
-    "PORT": 33333,
+        print("没有发现 settings.yaml 文件, 已重新生成, 请填写参数后再运行!")
+        with open("./settings.yaml", "w", encoding="utf-8") as f:
+            f.write("""# 数据库的地址 (一般保持默认即可)
+DATABASE_PATH: "./assets/PAN123DATABASE.db"
 
-    "CHANNEL_NAME": "",
-    "MESSAGE_AFTER_ID": 8050,
+# 网页运行的端口
+# 网页链接 http://{IP}:{PORT}/
+PORT: 33333
 
-    "ADMIN_ENTRY": "admin_abcdefg",
-    "ADMIN_USERNAME": "admin",
-    "ADMIN_PASSWORD": "123456",
+# Telegram 爬虫参数, 如果不知道就不要动
+CHANNEL_NAME: "" # 大家应该都知道是 telegram 的哪个群, 自己填入 (@xxxx的xxxx部分), GitHub不明说了
+MESSAGE_AFTER_ID: 8050 # 建议从第 8050 条消息开始爬, 因为之前的内容全都失效了
 
-    "SECRET_KEY": "114514",
+# 管理员入口, 用于登录后台
+# 管理页面: http://{IP}:{PORT}/{ADMIN_ENTRY}/login
+ADMIN_ENTRY: "admin_abcdefg"
+ADMIN_USERNAME: "admin"
+ADMIN_PASSWORD: "123456"
 
-    "DEBUG": false
-}""")
+# 密钥, 用于加密 cookies, 如果你要部署本网站, 并且开放给其他用户使用, 请务必修改
+SECRET_KEY: "114514"
+
+# 是否开启调试模式 (保持不动即可)
+DEBUG: false""")
         input("按任意键结束")
         exit(0)
