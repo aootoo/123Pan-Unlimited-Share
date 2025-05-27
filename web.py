@@ -28,6 +28,7 @@ app = Flask(
     static_folder=os.path.join(BASE_DIR, 'static'),
     template_folder=os.path.join(BASE_DIR,'templates')
     )
+
 app.secret_key = loadSettings("SECRET_KEY")
 
 def custom_secure_filename_part(name_str):
