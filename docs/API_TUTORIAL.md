@@ -1,312 +1,284 @@
 # [123云盘](https://www.123pan.com) 无限制分享工具（API接口文档）
 
 ## 目录
-
 - [123云盘 无限制分享工具（API接口文档）](#123云盘-无限制分享工具api接口文档)
   - [目录](#目录)
-  - [1. 从私人网盘导出 (`/api/export`)](#1-从私人网盘导出-apiexport)
-  - [2. 导入到私人网盘 (`/api/import`)](#2-导入到私人网盘-apiimport)
-  - [3. 从分享链接导出 (`/api/link`)](#3-从分享链接导出-apilink)
-  - [4. 列出公共分享 (`/api/list_public_shares`)](#4-列出公共分享-apilist_public_shares)
-  - [5. 获取公共分享内容 (`/api/get_public_share_content`)](#5-获取公共分享内容-apiget_public_share_content)
+  - [1. `/api/export`：从私人网盘导出](#1-apiexport从私人网盘导出)
+  - [2. `/api/import`：导入到私人网盘](#2-apiimport导入到私人网盘)
+  - [3. `/api/link`：从分享链接导出](#3-apilink从分享链接导出)
+  - [4. `/api/list_public_shares`：获取公共分享列表](#4-apilist_public_shares获取公共分享列表)
+  - [5. `/api/get_content_tree`：获取分享内容的目录树](#5-apiget_content_tree获取分享内容的目录树)
 
-## 1. 从私人网盘导出 (`/api/export`)
+## 1. `/api/export`：从私人网盘导出
 
-此接口用于从登录用户的 123 云盘中导出指定文件夹（或整个网盘）的元数据。导出的数据是一个 Base64 编码的字符串，可以直接用于后续的导入操作或保存为 `.123share` 文件。用户可以选择是否将导出的文件提交到本项目的资源共享计划中（如果启用）。
+此接口用于从用户的123云盘账户中导出指定文件夹（或整个网盘）的内容，并生成一个长分享码（Base64编码的JSON数据）。可选地，可以将此分享码存入本站数据库以生成一个短分享码，并/或将其加入资源共享计划（公开可见，需审核）。
 
--   **URL:** `/api/export`
--   **方法:** `POST`
--   **请求头:**
-    -   `Content-Type: application/json`
--   **请求体 (JSON):**
-
-    | 参数名                  | 类型         | 是否必须 | 默认值    | 说明                                                                                                    |
-    | ----------------------- | ------------ | -------- | --------- | ------------------------------------------------------------------------------------------------------- |
-    | `username`              | `string`     | 是       |           | 123 云盘的登录账号（手机号或邮箱）。                                                                           |
-    | `password`              | `string`     | 是       |           | 123 云盘的登录密码。                                                                                      |
-    | `homeFilePath`          | `string`/`int` | 是       |           | 要导出的文件夹 ID。填 `0` 表示导出整个网盘根目录下的所有内容。其他文件夹 ID 可通过浏览器开发者工具获取。 |
-    | `userSpecifiedBaseName` | `string`     | 否       | `""`      | 用户指定的分享名。如果提供，并且 `shareProject` 为 `true`，此名称将用于生成提交到共享计划的文件名的一部分。也可能被前端用作下载文件的建议名称。 |
-    | `shareProject`          | `boolean`    | 否       | `false`   | 是否将导出的文件提交到资源共享计划。如果为 `true`，导出的内容副本将保存到服务器的待审核目录。                   |
-
--   **响应 (NDJSON - `application/x-ndjson`):**
-    服务器会流式发送一系列 JSON 对象，每个对象结构如下：
-
-    | 字段名     | 类型             | 说明                                                                                                                                                                                             |
-    | ---------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-    | `isFinish` | `boolean` / `null` | - `true`: 表示操作最终成功完成，此时 `message` 字段包含 Base64 编码的分享数据。 <br> - `false`: 表示操作过程中发生错误，此时 `message` 字段包含错误描述。<br> - `null`: 表示这是一个中间状态的日志消息。 |
-    | `message`  | `string`         | 操作状态信息、日志、错误描述，或最终的 Base64 分享数据 (当 `isFinish: true`)。                                                                                                                     |
-
--   **成功示例:**
-    **请求:**
+- **路径：** `/api/export`
+- **方法：** `POST`
+- **请求头：**
+    - `Content-Type: application/json`
+- **请求体 (JSON)：**
     ```json
     {
-        "username": "user@example.com",
-        "password": "yourpassword123",
-        "homeFilePath": "0",
-        "userSpecifiedBaseName": "我的重要备份",
-        "shareProject": true
-    }
-    ```
-    **响应 (片段，实际为多行 NDJSON):**
-    ```json
-    {"isFinish": null, "message": "登录成功，开始导出文件列表..."}
-    {"isFinish": null, "message": "获取文件列表中：parentFileId: 0"}
-    {"isFinish": null, "message": "读取文件夹中..."}
-    ...
-    {"isFinish": null, "message": "数据匿名化完成"}
-    {"isFinish": true, "message": "LONG_BASE64_ENCODED_STRING_DATA_HERE"}
-    {"isFinish": null, "message": "文件已提交至资源共享计划审核队列: 16xxxxxxxx_我的重要备份.123share"}
-    {"isFinish": null, "message": "已注销账号。"}
-    ```
-
--   **失败示例 (登录失败):**
-    **请求:** (密码错误)
-    ```json
-    {
-        "username": "user@example.com",
-        "password": "wrongpassword",
-        "homeFilePath": "0"
-    }
-    ```
-    **响应 (NDJSON):**
-    ```json
-    {"isFinish": false, "message": "登录失败，请检查用户名和密码。"}
-    ```
-
--   **注意事项:**
-    -   客户端必须能够处理流式 NDJSON 响应。
-    -   导出的 Base64 字符串可能非常长，请确保客户端能处理大字符串。
-    -   `homeFilePath` 除了 `0` (根目录) 以外的值，需要用户自行从 123 云盘网页版获取。
-
----
-
-## 2. 导入到私人网盘 (`/api/import`)
-
-此接口用于将之前导出的 `.123share` 文件内容（Base64 编码的字符串）导入到登录用户的 123 云盘中。导入时会在用户网盘的根目录下创建一个新的文件夹来存放导入的内容。
-
--   **URL:** `/api/import`
--   **方法:** `POST`
--   **请求头:**
-    -   `Content-Type: application/json`
--   **请求体 (JSON):**
-
-    | 参数名           | 类型     | 是否必须 | 默认值 | 说明                                                                     |
-    | ---------------- | -------- | -------- | ------ | ------------------------------------------------------------------------ |
-    | `username`       | `string` | 是       |        | 123 云盘的登录账号（手机号或邮箱）。                                          |
-    | `password`       | `string` | 是       |        | 123 云盘的登录密码。                                                        |
-    | `base64Data`     | `string` | 是       |        | `.123share` 文件的内容，即 Base64 编码的元数据字符串。                         |
-    | `rootFolderName` | `string` | 是       |        | 在用户 123 云盘根目录中创建的文件夹名称，导入的内容将存放在此文件夹下。 |
-
--   **响应 (NDJSON - `application/x-ndjson`):**
-    服务器会流式发送一系列 JSON 对象，每个对象结构如下：
-
-    | 字段名     | 类型             | 说明                                                                                                                                                            |
-    | ---------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-    | `isFinish` | `boolean` / `null` | - `true`: 表示操作最终成功完成。 <br> - `false`: 表示操作过程中发生错误。<br> - `null`: 表示这是一个中间状态的日志消息或进度更新。                                 |
-    | `message`  | `string`         | 操作状态信息、日志、进度（如正在创建哪个文件夹/上传哪个文件）、错误描述，或最终的成功信息。 当 `isFinish: true` 时，通常会包含实际创建的根文件夹全名。 |
-
--   **成功示例:**
-    **请求:**
-    ```json
-    {
-        "username": "user@example.com",
-        "password": "yourpassword123",
-        "base64Data": "LONG_BASE64_ENCODED_STRING_DATA_HERE",
-        "rootFolderName": "我导入的电影合集"
-    }
-    ```
-    **响应 (片段，实际为多行 NDJSON):**
-    ```json
-    {"isFinish": null, "message": "登录成功，开始导入文件..."}
-    {"isFinish": null, "message": "正在读取数据..."}
-    {"isFinish": null, "message": "数据读取完成"}
-    {"isFinish": null, "message": "正在清洗数据..."}
-    {"isFinish": null, "message": "数据清洗完成"}
-    {"isFinish": null, "message": "正在重建目录结构..."}
-    {"isFinish": null, "message":"[1/10][速度: 1.50 个/秒][预估剩余时间: 6.00 秒] 正在创建文件夹: 电影系列1"}
-    ...
-    {"isFinish": null, "message": "目录结构重建完成"}
-    {"isFinish": null, "message": "正在上传文件..."}
-    {"isFinish": null, "message":"[1/50][速度: 0.80 个/秒][预估剩余时间: 61.25 秒] 正在上传文件: 电影1.mp4"}
-    ...
-    {"isFinish": null, "message": "文件上传完成"}
-    {"isFinish": true, "message": "导入完成, 保存到123网盘根目录中的: >>> 我导入的电影合集_20231027103000_GitHub@realcwj <<< 文件夹"}
-    {"isFinish": null, "message": "已注销账号。"}
-    ```
-
--   **失败示例 (Base64 数据无效):**
-    **请求:**
-    ```json
-    {
-        "username": "user@example.com",
-        "password": "yourpassword123",
-        "base64Data": "INVALID_OR_CORRUPTED_BASE64_DATA",
-        "rootFolderName": "无效导入"
-    }
-    ```
-    **响应 (NDJSON):**
-    ```json
-    {"isFinish": null, "message": "登录成功，开始导入文件..."}
-    {"isFinish": null, "message": "正在读取数据..."}
-    {"isFinish": false, "message": "读取数据失败, 报错：Incorrect padding"}
-    {"isFinish": null, "message": "已注销账号。"}
-    ```
--   **注意事项:**
-    -   客户端必须能够处理流式 NDJSON 响应。
-    -   导入过程可能较长，特别是当文件和文件夹数量较多时。客户端应能处理长时间的连接和持续的日志输出。
-    -   实际创建的根文件夹名会自动附加时间戳和项目标识，以避免重名。
-
----
-
-## 3. 从分享链接导出 (`/api/link`)
-
-此接口用于从 123 云盘的公开分享链接中导出元数据。导出的数据格式与 `/api/export` 相同，是一个 Base64 编码的字符串。用户可以选择是否将导出的文件提交到本项目的资源共享计划中。
-
--   **URL:** `/api/link`
--   **方法:** `POST`
--   **请求头:**
-    -   `Content-Type: application/json`
--   **请求体 (JSON):**
-
-    | 参数名                  | 类型         | 是否必须 | 默认值    | 说明                                                                                                                                       |
-    | ----------------------- | ------------ | -------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-    | `parentFileId`          | `string`/`int` | 是       |           | 要从分享链接中导出的文件夹 ID。通常填 `0` 表示导出分享链接根目录下的所有内容。如果分享链接本身指向特定子文件夹，可能需要提供该子文件夹的ID（较少见）。 |
-    | `shareKey`              | `string`     | 是       |           | 123 云盘分享链接中的 Key 部分（例如，链接 `https://www.123pan.com/s/xxxx-yyyy` 中的 `xxxx-yyyy`）。                                        |
-    | `sharePwd`              | `string`     | 否       | `""`      | 分享链接的密码（提取码）。如果分享链接没有密码，则留空或不传此字段。                                                                            |
-    | `userSpecifiedBaseName` | `string`     | 否       | `""`      | 用户指定的分享名。如果提供，并且 `shareProject` 为 `true`，此名称将用于生成提交到共享计划的文件名的一部分。                                         |
-    | `shareProject`          | `boolean`    | 否       | `false`   | 是否将导出的文件提交到资源共享计划。如果为 `true`，导出的内容副本将保存到服务器的待审核目录。                                                    |
-
--   **响应 (NDJSON - `application/x-ndjson`):**
-    同 `/api/export` 接口，服务器会流式发送一系列 JSON 对象。
-
--   **成功示例:**
-    **请求:**
-    ```json
-    {
-        "parentFileId": "0",
-        "shareKey": "ABCd-EfGh",
-        "sharePwd": "1234",
-        "userSpecifiedBaseName": "某分享资源",
+        "username": "你的123网盘账号（手机号/邮箱）",
+        "password": "你的123网盘密码",
+        "homeFilePath": "要分享的文件夹ID",
+        "userSpecifiedBaseName": "用户指定的分享根目录名（可选）",
+        "generateShortCode": false,
         "shareProject": false
     }
     ```
-    **响应 (片段，实际为多行 NDJSON):**
-    ```json
-    {"isFinish": null, "message": "开始从分享链接导出文件列表..."}
-    {"isFinish": null, "message": "获取文件列表中：parentFileId: 0"}
-    ...
-    {"isFinish": null, "message": "数据匿名化完成"}
-    {"isFinish": true, "message": "ANOTHER_LONG_BASE64_ENCODED_STRING_DATA_HERE"}
-    ```
+    - `username` (string, 必填): 123云盘账户的登录用户名（手机号或邮箱）。
+    - `password` (string, 必填): 123云盘账户的登录密码。
+    - `homeFilePath` (string/integer, 必填): 要导出的文件夹ID。如果分享整个网盘，则填 `0`。
+    - `userSpecifiedBaseName` (string, 可选): 用户为此次分享指定的根目录名称。如果留空，且需要生成短分享码或加入共享计划，系统可能会使用默认名称（如基于时间戳）。如果 `shareProject` 为 `true`，此项变为必填。
+    - `generateShortCode` (boolean, 可选, 默认 `false`): 是否生成短分享码。如果为 `true`，导出的长分享码将被存储在本站数据库，并返回一个短哈希码。
+    - `shareProject` (boolean, 可选, 默认 `false`): 是否加入资源共享计划。如果为 `true`，此分享将提交审核，通过后对所有用户公开可见。勾选此项会强制 `generateShortCode` 为 `true`，并且 `userSpecifiedBaseName` 成为必填项。
 
--   **失败示例 (分享链接无效或密码错误):**
-    **请求:**
+- **响应 (application/x-ndjson - Newline Delimited JSON):**
+  服务器会以流的形式返回一系列JSON对象，每个对象占一行。
+    - **进度消息 (isFinish: null):**
+        ```json
+        {"isFinish": null, "message": "登录成功，开始导出文件列表..."}
+        {"isFinish": null, "message": "读取文件夹中..."}
+        {"isFinish": null, "message": "正在生成短分享码并存储..."}
+        ```
+        - `isFinish`: `null` 表示操作正在进行中。
+        - `message` (string): 当前操作的状态或日志信息。
+
+    - **成功 (isFinish: true):**
+        ```json
+        {"isFinish": true, "message": "{\"longShareCode\": \"BASE64_ENCODED_STRING\", \"shortShareCode\": \"HASH_STRING_IF_GENERATED\"}"}
+        ```
+        - `isFinish`: `true` 表示操作成功完成。
+        - `message` (string - **这是一个JSON字符串，需要客户端再次解析**): 包含最终结果的JSON字符串。
+            - `longShareCode` (string): Base64编码的分享数据。
+            - `shortShareCode` (string, 可选): 如果请求生成了短分享码，则此字段存在。
+
+    - **失败 (isFinish: false):**
+        ```json
+        {"isFinish": false, "message": "登录失败，请检查用户名和密码。"}
+        {"isFinish": false, "message": "未能从123网盘获取文件数据。"}
+        ```
+        - `isFinish`: `false` 表示操作失败。
+        - `message` (string): 错误描述信息。
+
+- **注意事项：**
+    - 密码等敏感信息仅用于当次操作，服务器不会存储。
+    - 如果 `shareProject` 为 `true`，`userSpecifiedBaseName` 必须提供且不能为空。
+    - 如果 `generateShortCode` 为 `true`，导出的数据（长分享码）会被存储到服务器数据库。数据的可见性取决于 `shareProject` 的值（`true` 为待审核公开，`false` 为私密短码）。
+
+## 2. `/api/import`：导入到私人网盘
+
+此接口用于将通过本工具生成的分享码（长码或短码）导入到用户的123云盘账户。
+
+- **路径：** `/api/import`
+- **方法：** `POST`
+- **请求头：**
+    - `Content-Type: application/json`
+- **请求体 (JSON)：**
     ```json
+    // 模式1：使用短分享码导入
     {
-        "parentFileId": "0",
-        "shareKey": "INVALID-KEY",
-        "sharePwd": "wrongpass"
+        "username": "你的123网盘账号",
+        "password": "你的123网盘密码",
+        "codeHash": "短分享码（数据库中的Hash值）"
+    }
+
+    // 模式2：使用长分享码导入
+    {
+        "username": "你的123网盘账号",
+        "password": "你的123网盘密码",
+        "base64Data": "完整的Base64长分享码",
+        "rootFolderName": "要创建的根目录名",
+        "shareProject": false // 可选, 是否将此长码也加入共享计划
     }
     ```
-    **响应 (NDJSON):**
-    ```json
-    {"isFinish": null, "message": "开始从分享链接导出文件列表..."}
-    {"isFinish": null, "message": "获取文件列表中：parentFileId: 0"}
-    {"isFinish": false, "message": "获取文件列表失败：{...error_details_from_pan_api...}"}
-    ```
--   **注意事项:**
-    -   客户端必须能够处理流式 NDJSON 响应.
-    -   此接口不需要用户登录凭证，因为它处理的是公开（或有密码）的分享链接。
+    - `username` (string, 必填): 123云盘账户的登录用户名。
+    - `password` (string, 必填): 123云盘账户的登录密码。
+    - **以下参数二选一提供：**
+        - `codeHash` (string): 通过本站生成的短分享码。如果提供此参数，则不应提供 `base64Data` 和 `rootFolderName`。
+        - 或组合：
+            - `base64Data` (string): 完整的长分享码（Base64编码的JSON数据）。
+            - `rootFolderName` (string): 在用户网盘中创建的顶级文件夹的名称。
+            - `shareProject` (boolean, 可选, 默认 `false`): 仅当使用 `base64Data` 导入时有效。如果为 `true`，并且 `rootFolderName` 有效，则此长分享码及其指定的 `rootFolderName` 也会被提交到资源共享计划（待审核）。
 
----
+- **响应 (application/x-ndjson):**
+    - **进度消息 (isFinish: null):**
+        ```json
+        {"isFinish": null, "message": "登录成功，准备导入数据..."}
+        {"isFinish": null, "message": "正在通过短分享码 29absdef... 获取数据..."}
+        {"isFinish": null, "message": "[1/100][...] 正在创建文件夹: 电影"}
+        ```
+        - `isFinish`: `null`
+        - `message` (string): 进度信息。
 
-## 4. 列出公共分享 (`/api/list_public_shares`)
+    - **成功 (isFinish: true):**
+        ```json
+        {"isFinish": true, "message": "导入完成, 保存到123网盘根目录中的: >>> 导入的分享_时间戳_GitHub@realcwj <<< 文件夹"}
+        ```
+        - `isFinish`: `true`
+        - `message` (string): 导入成功的最终消息。
 
-此接口用于获取服务器上公共资源库中所有可用的 `.123share` 文件列表。这些文件通常是由其他用户通过本工具的“加入资源共享计划”功能提交并审核通过的。
+    - **失败 (isFinish: false):**
+        ```json
+        {"isFinish": false, "message": "登录失败，请检查用户名和密码。"}
+        {"isFinish": false, "message": "短分享码无效或未在数据库中找到。"}
+        {"isFinish": false, "message": "读取数据失败, 报错：..."}
+        ```
+        - `isFinish`: `false`
+        - `message` (string): 错误信息。
 
--   **URL:** `/api/list_public_shares`
--   **方法:** `GET`
--   **请求参数:** 无
--   **响应 (JSON - `application/json`):**
+- **注意事项：**
+    - 如果同时提供 `codeHash` 和 `base64Data`，会优先使用 `codeHash` 或返回参数冲突错误。
+    - 导入的文件会存放在用户123网盘根目录下一个新创建的文件夹内，文件夹名基于 `rootFolderName` 或短分享码对应的原始名称，并可能附加时间戳。
 
-    | 字段名    | 类型      | 说明                                                                                                 |
-    | --------- | --------- | ---------------------------------------------------------------------------------------------------- |
-    | `success` | `boolean` | 操作是否成功。`true` 表示成功获取列表，`false` 表示失败。                                                   |
-    | `files`   | `array`   | 仅当 `success` 为 `true` 时出现。一个包含文件对象的数组，每个对象代表一个公共分享文件。文件按 `name` 字段排序。 |
-    | `message` | `string`  | 仅当 `success` 为 `false` 时出现，包含错误描述。                                                          |
+## 3. `/api/link`：从分享链接导出
 
-    每个 `files` 数组中的文件对象结构：
-    | 字段名     | 类型     | 说明                                        |
-    | ---------- | -------- | ------------------------------------------- |
-    | `name`     | `string` | 文件名（不包含 `.123share` 后缀）。         |
-    | `filename` | `string` | 完整的文件名（包含 `.123share` 后缀）。     |
+此接口用于从一个公开的123云盘分享链接中导出其内容，并生成长分享码。同样可以选择生成短分享码或加入资源共享计划。
 
--   **成功示例:**
-    **响应:**
-    ```json
-    {
-        "success": true,
-        "files": [
-            { "name": "经典电影合集", "filename": "经典电影合集.123share" },
-            { "name": "学习资料包", "filename": "学习资料包.123share" }
-        ]
-    }
-    ```
-
--   **失败示例 (服务器错误):**
-    **响应:**
-    ```json
-    {
-        "success": false,
-        "message": "获取公共分享列表失败: Internal server error"
-    }
-    ```
-
----
-
-## 5. 获取公共分享内容 (`/api/get_public_share_content`)
-
-此接口用于获取公共资源库中指定的 `.123share` 文件的实际内容（Base64 编码的字符串）以及建议的根目录名，方便用户直接用于导入操作。
-
--   **URL:** `/api/get_public_share_content`
--   **方法:** `GET`
--   **请求参数 (Query String):**
-
-    | 参数名     | 类型     | 是否必须 | 说明                                                            |
-    | ---------- | -------- | -------- | --------------------------------------------------------------- |
-    | `filename` | `string` | 是       | 要获取内容的完整文件名（例如 `经典电影合集.123share`）。需要进行 URL 编码。 |
-
--   **响应 (JSON - `application/json`):**
-
-    | 字段名           | 类型     | 说明                                                                 |
-    | ---------------- | -------- | -------------------------------------------------------------------- |
-    | `success`        | `boolean`| 操作是否成功。`true` 表示成功获取文件内容，`false` 表示失败。              |
-    | `base64Data`     | `string` | 仅当 `success` 为 `true` 时出现。文件的 Base64 编码内容。                 |
-    | `rootFolderName` | `string` | 仅当 `success` 为 `true` 时出现。建议的根目录名（通常是文件名去除后缀）。 |
-    | `message`        | `string` | 仅当 `success` 为 `false` 时出现，包含错误描述。                           |
-
--   **成功示例:**
-    **请求:** `/api/get_public_share_content?filename=%E7%BB%8F%E5%85%B8%E7%94%B5%E5%BD%B1%E5%90%88%E9%9B%86.123share`
-    (其中 `%E7...` 是 "经典电影合集.123share" 的 URL 编码)
-    **响应:**
+- **路径：** `/api/link`
+- **方法：** `POST`
+- **请求头：**
+    - `Content-Type: application/json`
+- **请求体 (JSON)：**
     ```json
     {
-        "success": true,
-        "base64Data": "CONTENT_OF_THE_SHARE_FILE_AS_BASE64_STRING",
-        "rootFolderName": "经典电影合集"
+        "parentFileId": "要导出的分享内文件夹ID",
+        "shareKey": "分享链接的Key",
+        "sharePwd": "分享链接的密码（提取码，可选）",
+        "userSpecifiedBaseName": "用户指定的分享根目录名（可选）",
+        "generateShortCode": false,
+        "shareProject": false
     }
     ```
+    - `parentFileId` (string/integer, 必填): 要从分享链接中导出的文件夹ID。如果是分享链接的根目录，则填 `0`。
+    - `shareKey` (string, 必填): 分享链接中的关键部分（例如，`https://www.123pan.com/s/xxxx-yyyy` 中的 `xxxx-yyyy`）。
+    - `sharePwd` (string, 可选): 分享链接的提取密码。如果链接没有密码，则此字段可留空或不传。
+    - `userSpecifiedBaseName` (string, 可选): 同 `/api/export` 中的定义。
+    - `generateShortCode` (boolean, 可选, 默认 `false`): 同 `/api/export` 中的定义。
+    - `shareProject` (boolean, 可选, 默认 `false`): 同 `/api/export` 中的定义。
 
--   **失败示例 (文件未找到):**
-    **请求:** `/api/get_public_share_content?filename=non_existent_file.123share`
-    **响应:**
+- **响应 (application/x-ndjson):**
+  响应格式与 `/api/export` 完全相同。
+    - **进度消息 (isFinish: null):**
+        ```json
+        {"isFinish": null, "message": "开始从分享链接导出文件列表..."}
+        ```
+    - **成功 (isFinish: true):**
+        ```json
+        {"isFinish": true, "message": "{\"longShareCode\": \"BASE64_ENCODED_STRING\", \"shortShareCode\": \"HASH_STRING_IF_GENERATED\"}"}
+        ```
+    - **失败 (isFinish: false):**
+        ```json
+        {"isFinish": false, "message": "获取文件列表失败：{\"code\":100x, ...}"}
+        ```
+
+- **注意事项：**
+    - 此接口不需要用户登录123云盘。
+    - 其他关于 `userSpecifiedBaseName`, `generateShortCode`, `shareProject` 的注意事项同 `/api/export`。
+
+## 4. `/api/list_public_shares`：获取公共分享列表
+
+此接口用于获取数据库中所有设置为公开可见（`visibleFlag=true`，即已审核通过）的分享条目。
+
+- **路径：** `/api/list_public_shares`
+- **方法：** `GET`
+- **请求头：** 无特殊要求。
+- **请求体：** 无。
+
+- **响应 (application/json):**
+    - **成功 (HTTP 200):**
+        ```json
+        {
+            "success": true,
+            "files": [
+                {
+                    "name": "分享的电影合集",
+                    "codeHash": "abcdef123456...",
+                    "timestamp": "2023-10-27 10:00:00"
+                },
+                {
+                    "name": "学习资料",
+                    "codeHash": "fedcba654321...",
+                    "timestamp": "2023-10-26 15:30:00"
+                }
+                // ... 更多分享条目
+            ]
+        }
+        ```
+        - `success` (boolean): `true` 表示请求成功。
+        - `files` (array): 分享条目对象的数组。
+            - `name` (string): 分享的根目录名。
+            - `codeHash` (string): 短分享码。
+            - `timestamp` (string): 分享条目入库的时间戳（格式如 `YYYY-MM-DD HH:MM:SS`）。列表默认按时间戳降序排列。
+
+    - **失败 (例如 HTTP 500):**
+        ```json
+        {
+            "success": false,
+            "message": "获取公共分享列表失败: 数据库错误描述"
+        }
+        ```
+        - `success` (boolean): `false` 表示请求失败。
+        - `message` (string): 错误信息。
+
+## 5. `/api/get_content_tree`：获取分享内容的目录树
+
+此接口用于根据提供的短分享码或长分享码，生成对应分享内容的目录树结构。
+
+- **路径：** `/api/get_content_tree`
+- **方法：** `POST`
+- **请求头：**
+    - `Content-Type: application/json`
+- **请求体 (JSON)：**
     ```json
+    // 模式1：使用短分享码
     {
-        "success": false,
-        "message": "文件未找到。"
+        "codeHash": "短分享码"
+    }
+
+    // 模式2：使用长分享码
+    {
+        "shareCode": "完整的Base64长分享码"
     }
     ```
+    - **任选其一提供：**
+        - `codeHash` (string): 本站生成的短分享码。
+        - `shareCode` (string): 完整的长分享码（Base64编码的元数据）。
 
--   **注意事项:**
-    -   `filename` 参数必须正确进行 URL 编码，特别是当文件名包含空格或中文字符时。
-    -   服务器对 `filename` 参数进行了基本的安全检查，以防止路径遍历攻击。
+- **响应 (application/json):**
+    - **成功 (HTTP 200):**
+        ```json
+        {
+            "isFinish": true,
+            "message": [
+                "📂 根目录",
+                "├── 📄 文件1.txt",
+                "├── 🖼️ 图片.png",
+                "└── 📂 子目录",
+                "    └── 🎥 视频.mp4"
+            ]
+        }
+        ```
+      - `isFinish` (boolean): `true` 表示目录树生成成功。
+      - `message` (array of strings): 表示目录树的字符串数组，每一项代表树中的一行。包含了Emoji图标。
+
+    - **失败 (例如 HTTP 400, 404, 500):**
+        ```json
+        {
+            "isFinish": false,
+            "message": "错误: 未找到与提供的短分享码对应的分享内容。"
+        }
+        // 或
+        {
+            "isFinish": false,
+            "message": "错误: 无效的Base64数据。"
+        }
+        ```
+      - `isFinish` (boolean): `false` 表示目录树生成失败。
+      - `message` (string): 错误描述信息。
+
+- **注意事项：**
+    - 如果同时提供了 `codeHash` 和 `shareCode`，`codeHash` 的优先级更高。
+    - `generateContentTree.py` 脚本负责解析分享码并生成树形结构，支持常见文件类型的Emoji图标。
