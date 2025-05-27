@@ -6,7 +6,7 @@ import urllib.parse
 from tqdm import tqdm
 from Pan123 import Pan123
 from Pan123Database import Pan123Database
-from utils import getStringHash
+from utils import getStringHash, loadSettings
 
 def getContent(channel_name, after_id, debug=False):
 
@@ -225,10 +225,10 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, debug=Fal
     #             break
     
     # 调用 Pan123 导入数据到数据库
-    db = Pan123Database(debug=debug)
+    db = Pan123Database(debug=debug, dbpath=loadSettings("DATABASE_PATH"))
     for key, value in total_json_processed_data.items():
         # 如果name已经存在, 则跳过
-        if db.queryName(rootFolderName=value.get("name")) is not None:
+        if len(db.queryName(rootFolderName=value.get("name"))):
             if debug:
                 print(f"[{key}] 跳过：{value.get('name')}, 原因：数据库内已存在")
             continue
