@@ -7,3 +7,5 @@ __pycache__
 *test*
 PRIVATE_KEY.md
 /export
+/web.dist
+/web.build
