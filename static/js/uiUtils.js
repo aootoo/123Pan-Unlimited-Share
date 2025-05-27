@@ -159,35 +159,87 @@ function displayShareCodesAndActions(data, elements) {
     return longShareData;
 }
 
-// --- IP区域检查功能 ---
+// --- 新增IP区域检查功能 (JSONP 版本) ---
+let geoCheckPromise = null; // 用于存储Promise的状态，避免重复请求
 
 /**
- * 客户端侧检查IP是否为中国大陆地区
+ * 检查IP是否为中国大陆地区（客户端，使用JSONP）。
  * @returns {Promise<boolean>} True: 支持 (境外IP或港澳台或API请求失败), False: 不支持 (中国大陆IP)。
  */
-async function isAvailableRegionJS() {
-    const checkIpUrl = "https://ipv4.ping0.cc/geo";
-    try {
-        const response = await fetch(checkIpUrl, { cache: "no-store" }); // cache: "no-store" 确保获取最新信息
-        if (!response.ok) {
-            console.warn("IP地理位置检查API请求失败:", response.status, "将默认允许访问。");
-            return true; // API请求失败时，默认为true以允许访问
-        }
-        const responseText = await response.text();
-        
-        // 检查是否包含"中国"并且不包含"香港", "澳门", "台湾"
-        if (responseText.includes("中国") && 
-            !["香港", "澳门", "台湾"].some(keyword => responseText.includes(keyword))) {
-            // console.log(`当前IP地址检测为中国大陆，根据策略将限制访问。API响应: \n${responseText}`);
-            return false; // 中国大陆IP
-        } else {
-            // console.log(`当前IP地址检测为非中国大陆或港澳台，允许访问。API响应: \n${responseText}`);
-            return true; // 非中国大陆IP或港澳台
-        }
-    } catch (error) {
-        console.error("检查IP地理位置时发生网络错误:", error, "将默认允许访问。");
-        return true; // 发生网络等错误时，默认为true
+function isAvailableRegionJS() {
+    // 如果已经有正在进行的检查，则返回该Promise
+    if (geoCheckPromise) {
+        return geoCheckPromise;
     }
+
+    geoCheckPromise = new Promise((resolve) => {
+        // 定义一个全局回调函数，JSONP脚本加载后会调用它
+        window.jsonpGeoCallback = function(ip, location, asn, org) {
+            // console.log("JSONP地理位置信息:", ip, location, asn, org);
+            // 清理全局回调函数，避免内存泄漏和冲突
+            delete window.jsonpGeoCallback;
+            // 从DOM中移除JSONP的script标签
+            const scriptTag = document.getElementById('jsonpGeoScript');
+            if (scriptTag) {
+                scriptTag.remove();
+            }
+
+            if (typeof location !== 'string') {
+                console.warn("JSONP回调: location参数不是字符串, 默认为允许访问。");
+                resolve(true);
+                return;
+            }
+            
+            // 检查 location 字符串是否包含"中国"并且不包含"香港", "澳门", "台湾"
+            if (location.includes("中国") && 
+                !["香港", "澳门", "台湾"].some(keyword => location.includes(keyword))) {
+                // console.log(`当前IP地址检测为中国大陆 (基于JSONP: ${location}), 根据策略将限制访问。`);
+                resolve(false); // 中国大陆IP
+            } else {
+                // console.log(`当前IP地址检测为非中国大陆或港澳台 (基于JSONP: ${location}), 允许访问。`);
+                resolve(true); // 非中国大陆IP或港澳台
+            }
+        };
+
+        // 创建并添加script标签来触发JSONP请求
+        const script = document.createElement('script');
+        script.id = 'jsonpGeoScript'; // 给script标签一个ID，方便之后移除
+        script.src = 'https://ping0.cc/geo/jsonp/jsonpGeoCallback'; // 注意回调函数名已包含在URL中
+        
+        // 处理脚本加载失败的情况 (例如网络错误，或ping0.cc服务不可用)
+        script.onerror = function() {
+            console.error("加载JSONP地理位置脚本失败。默认为允许访问。");
+            delete window.jsonpGeoCallback; // 清理
+            const scriptTag = document.getElementById('jsonpGeoScript');
+            if (scriptTag) {
+                scriptTag.remove();
+            }
+            resolve(true); // 加载失败时，默认为允许访问
+        };
+        
+        document.body.appendChild(script);
+
+        // 设置一个超时，以防JSONP请求一直没有响应
+        setTimeout(() => {
+            if (window.jsonpGeoCallback) { // 如果回调还没有被调用
+                console.warn("JSONP地理位置请求超时。默认为允许访问。");
+                delete window.jsonpGeoCallback;
+                const scriptTag = document.getElementById('jsonpGeoScript');
+                if (scriptTag) {
+                    scriptTag.remove();
+                }
+                resolve(true); // 超时，默认为允许访问
+            }
+        }, 5000); // 5秒超时
+    });
+
+    // 在Promise解决后，重置geoCheckPromise，以便下次可以重新开始检查
+    // 这样做是为了处理页面刷新等情况，或者如果希望每次页面导航都重新检查
+    geoCheckPromise.finally(() => {
+        geoCheckPromise = null;
+    });
+    
+    return geoCheckPromise;
 }
 
 /**
@@ -196,7 +248,7 @@ async function isAvailableRegionJS() {
  */
 async function checkRegionAndRedirect() {
     // 仅当当前页面不是 /banip 时才执行检查和重定向，防止无限循环
-    if (window.location.pathname === '/banip') {
+    if (window.location.pathname === '/banip' || window.location.pathname.startsWith('/admin_')) { // 管理员页面不进行区域检查
         return;
     }
 
@@ -208,7 +260,9 @@ async function checkRegionAndRedirect() {
     // document.body.classList.remove('checking-region'); // 移除加载状态
 
     if (!isAllowed) {
-        window.location.href = '/banip'; // 服务器端应配置 /banip 路由
+        // 构造完整的 banip 页面的 URL
+        const banipUrl = window.location.origin + '/banip';
+        window.location.href = banipUrl; 
     }
 }
 // --- IP区域检查功能结束 ---
