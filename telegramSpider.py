@@ -145,7 +145,7 @@ def getNameLinkPwd(content_list, debug=False):
                 link = line.strip()
     # 有的文件名有多个空格, 替换为一个空格
     name = name.replace("  ", " ").replace("  ", " ").replace("  ", " ")
-    return {"name": name, "link": link, "pwd": pwd, "raw_link": raw_link}
+    return {"name": name, "link": link, "pwd": pwd, "raw_link": raw_link, "processed": False}
 
 def startSpider(channel_name, message_after_id=None, save_interval=10, debug=False):
 
@@ -229,6 +229,12 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, debug=Fal
     # 调用 Pan123 导入数据到数据库
     db = Pan123Database(debug=debug, dbpath=loadSettings("DATABASE_PATH"))
     for key, value in total_json_processed_data.items():
+        # 如果处理过了，跳过
+        if value.get("processed"):
+            if debug:
+                print(f"[{key}] 跳过：{value.get('name')}, 原因：已处理过")
+            continue
+        value["processed"] = True
         # 如果name已经存在, 则跳过
         if len(db.queryName(rootFolderName=value.get("name"))):
             if debug:
@@ -251,6 +257,10 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, debug=Fal
             else:
                 print(f"[{key}] 导入失败：{value.get('name')}, 原因：{current_state.get('message')}")
                 break
+
+    # 保存到Json文件
+    with open(f"{channel_name}_message_processed.json", "w", encoding="utf-8") as f:
+        json.dump(total_json_processed_data, f, ensure_ascii=False, indent=4)
 
 if __name__ == "__main__":
 
