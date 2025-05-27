@@ -7,6 +7,7 @@ from flask import Flask, render_template, request,\
 import re
 import unicodedata
 from functools import wraps
+import os
 
 from Pan123 import Pan123
 from utils import getStringHash, loadSettings, isAvailableRegion
@@ -20,7 +21,13 @@ ADMIN_PASSWORD = loadSettings("ADMIN_PASSWORD")
 PORT = loadSettings("PORT")
 DATABASE_PATH = loadSettings("DATABASE_PATH") 
 
-app = Flask(__name__)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app = Flask(
+    __name__,
+    static_folder=os.path.join(BASE_DIR, 'static'),
+    template_folder=os.path.join(BASE_DIR,'templates')
+    )
 app.secret_key = loadSettings("SECRET_KEY")
 
 def custom_secure_filename_part(name_str):
@@ -710,4 +717,9 @@ if __name__ == '__main__':
 
     # 启动Flask应用
     print("启动网页服务")
-    app.run(debug=DEBUG, host='0.0.0.0', port=PORT, threaded=True)
+    app.run(
+        debug=DEBUG,
+        host='0.0.0.0',
+        port=PORT,
+        threaded=True
+        )
