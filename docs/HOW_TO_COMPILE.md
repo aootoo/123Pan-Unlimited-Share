@@ -10,6 +10,7 @@
   - [四、安装 `nuitka` 编译工具](#四安装-nuitka-编译工具)
   - [五、编译项目](#五编译项目)
   - [六、编译成功](#六编译成功)
+  - [七、运行](#七运行)
 
 ## 一、创建全新的 `Python` 虚拟环境
 
@@ -38,9 +39,13 @@ pip install nuitka
 ## 五、编译项目
 
 ```shell
-nuitka --standalone --onefile web.py
+nuitka --standalone --onefile --include-data-dir=./static=static --include-data-dir=./templates=templates web.py
 ```
 
 ## 六、编译成功
 
 - 编译的文件位于`123Pan-Unlimited-Share` 文件夹下的 `web.exe`
+
+## 七、运行
+
+- 直接运行 `web.exe` 即可。
