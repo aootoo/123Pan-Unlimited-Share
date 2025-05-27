@@ -695,14 +695,6 @@ def admin_logout():
 
 if __name__ == '__main__':
 
-    # 检查 IP
-    if isAvailableRegion():
-        print("IP检查通过")
-    else:
-        print(f"不支持中国大陆IP用户使用, 请检查您的IP地址")
-        input("按任意键结束")
-        exit(0)
-
     # 下载最新数据库
     try:
         db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
