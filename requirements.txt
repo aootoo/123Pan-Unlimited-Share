@@ -2,6 +2,4 @@ flask
 tqdm
 requests
 beautifulsoup4
-sqlite3
 pyyaml
-json
