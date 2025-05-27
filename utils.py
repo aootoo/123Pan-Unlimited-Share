@@ -1,7 +1,6 @@
 import hashlib
 import requests
 import os
-import json
 import yaml
 
 # 构建AbsPath
