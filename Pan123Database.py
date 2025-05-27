@@ -110,6 +110,8 @@ class Pan123Database:
             self.insertData(codeHash, rootFolderName, visibleFlag, shareCode)
             if self.debug:
                 print(f"导入 {codeHash}，rootFolderName: {rootFolderName}, visibleFlag: {visibleFlag}")
+            else:
+                print(f"新增资源: {rootFolderName} ({codeHash})")
 
         # 关闭导入的数据库连接
         conn_to_import.close()
