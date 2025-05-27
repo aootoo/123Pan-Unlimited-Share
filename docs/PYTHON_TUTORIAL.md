@@ -1,8 +1,8 @@
-# [123云盘](https://www.123pan.com) 无限制分享工具（Python脚本运行教程）
+# [123云盘](https://www.123pan.com) 无限制分享工具（Python函数调用文档）
 
 ## 目录
 
-- [123云盘 无限制分享工具（Python脚本运行教程）](#123云盘-无限制分享工具python脚本运行教程)
+- [123云盘 无限制分享工具（Python函数调用文档）](#123云盘-无限制分享工具python函数调用文档)
   - [目录](#目录)
   - [一、准备](#一准备)
   - [二、从个人网盘分享文件](#二从个人网盘分享文件)
@@ -18,7 +18,7 @@
 3. 安装依赖
 
     ```shell
-    pip install tqdm requests
+    pip install -r requirements.txt
     ```
 
 ## 二、从个人网盘分享文件
