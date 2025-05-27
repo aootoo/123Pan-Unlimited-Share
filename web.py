@@ -696,12 +696,17 @@ if __name__ == '__main__':
         exit(0)
 
     # 下载最新数据库
-    db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
-    print("正在下载最新数据库")
-    latest_db_path = db.downloadLatestDatabase()
-    print("正在导入最新数据库")
-    db.importDatabase(latest_db_path)
-    db.close()
+    try:
+        db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
+        print("正在下载最新数据库")
+        latest_db_path = db.downloadLatestDatabase()
+        print("正在导入最新数据库")
+        db.importDatabase(latest_db_path)
+        db.close()
+    except Exception as e:
+        print(f"数据库更新报错: {e}")
+        input("按任意键结束")
+        exit(0)
 
     # 启动Flask应用
     print("启动网页服务")
