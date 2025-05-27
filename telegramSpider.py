@@ -120,6 +120,7 @@ def getNameLinkPwd(content_list, debug=False):
         name = ""
     link = ""
     pwd = ""
+    raw_link = ""
     for line in content_list:
         # 替换中文符号
         line = line.replace("？", "?").replace("！", "!").replace("：", ":").replace("，", ",").replace("。", ".").replace("（", "(").replace("）", ")")
@@ -130,6 +131,7 @@ def getNameLinkPwd(content_list, debug=False):
                 print(f"原文>>>{line}")
                 print(f"名称>>>{name}")
         elif "/s/" in line:
+            raw_link = line
             line = line.replace("提取码", "?提取码")
             if debug:
                 print(f"原文>>>{line}")
@@ -143,7 +145,7 @@ def getNameLinkPwd(content_list, debug=False):
                 link = line.strip()
     # 有的文件名有多个空格, 替换为一个空格
     name = name.replace("  ", " ").replace("  ", " ").replace("  ", " ")
-    return {"name": name, "link": link, "pwd": pwd}
+    return {"name": name, "link": link, "pwd": pwd, "raw_link": raw_link}
 
 def startSpider(channel_name, message_after_id=None, save_interval=10, debug=False):
 
