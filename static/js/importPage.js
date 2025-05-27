@@ -176,6 +176,10 @@ document.addEventListener('DOMContentLoaded', async function () {
             
             const textContainer = document.createElement('div');
             textContainer.style.cursor = 'pointer'; // 使文本区域也可点击选择
+            textContainer.style.flexGrow = '1'; // 让文本容器占据主要空间
+            textContainer.style.overflow = 'hidden'; // 处理内部溢出的文本
+            textContainer.style.marginRight = '8px'; //（可选）和右侧按钮的间距，8px 比较合适
+            textContainer.style.minWidth = '0'; // 重要: 允许 flex item 在需要时收缩，以便其内容可以被截断或换行
 
             const nameSpan = document.createElement('span');
             nameSpan.classList.add('share-name');

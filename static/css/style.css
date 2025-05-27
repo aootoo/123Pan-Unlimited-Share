@@ -266,6 +266,9 @@ body {
     margin-bottom: 0.25rem;
     font-size: 0.95rem;
     transition: color 0.15s ease-in-out; 
+    /* 确保文件名可以换行且不会溢出其容器 */
+    word-wrap: break-word; /* 或者 word-break: break-all; 如果需要更强的断词 */
+    white-space: normal; /* 确保可以换行 */
 }
 .public-share-item .share-timestamp {
     font-size: 0.8em;
@@ -275,6 +278,7 @@ body {
 #publicSharesListContainer { 
     max-height: 280px;
     overflow-y: auto;
+    overflow-x: hidden; /* 新增：禁止横向滚动 */
     margin-bottom: 1rem;
     border: 1px solid #dee2e6;
     padding: 0.75rem; 
