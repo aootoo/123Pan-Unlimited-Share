@@ -100,7 +100,7 @@
     <script>
         // 将后端URL传递给JavaScript
         window.APP_CONFIG = {
-            apiExportUrl: "{{ url_for('api_export') }}"
+            apiExportUrl: "{{ url_for('api_export_route') }}"
         };
     </script>
     <script src="{{ url_for('static', filename='js/cookieUtils.js') }}"></script>

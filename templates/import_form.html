@@ -144,9 +144,9 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         window.APP_CONFIG = {
-            apiImportUrl: "{{ url_for('api_import') }}",
-            apiListPublicSharesUrl: "{{ url_for('list_public_shares_from_db') }}",
-            apiGetContentTreeUrl: "{{ url_for('api_get_content_tree') }}" // 新增API URL
+            apiImportUrl: "{{ url_for('api_import_route') }}",
+            apiListPublicSharesUrl: "{{ url_for('api_list_public_shares_route') }}",
+            apiGetContentTreeUrl: "{{ url_for('api_get_content_tree_route') }}"
         };
     </script>
     <script src="{{ url_for('static', filename='js/cookieUtils.js') }}"></script>
