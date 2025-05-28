@@ -7,6 +7,7 @@ from tqdm import tqdm
 from Pan123 import Pan123
 from Pan123Database import Pan123Database
 from utils import getStringHash, loadSettings
+from generateContentTree import generateContentTree
 
 def getContent(channel_name, after_id, debug=False):
 
@@ -115,7 +116,7 @@ def beautifyXML(xml_text):
 
 def getNameLinkPwd(content_list, debug=False):
     # 乱七八糟的, 有没有大佬帮忙优化一下
-    name = content_list[0]
+    name = content_list[0].replace("：", ":").replace("名称:", "").replace("资源名称:", "").replace("标题:", "")
     if any([i in name for i in ["automatically deleted", "com/s/", "无法进入群聊"]]):
         name = ""
     link = ""
@@ -124,13 +125,13 @@ def getNameLinkPwd(content_list, debug=False):
     for line in content_list:
         # 替换中文符号
         line = line.replace("？", "?").replace("！", "!").replace("：", ":").replace("，", ",").replace("。", ".").replace("（", "(").replace("）", ")")
-        if "名称" in line[:20]:
-            name = line.split(":")[-1]
-            if debug:
-                print("这里替换了name变量")
-                print(f"原文>>>{line}")
-                print(f"名称>>>{name}")
-        elif "/s/" in line:
+        # if "名称" in line[:20]:
+        #     name = line.split(":")[-1]
+        #     if debug:
+        #         print("这里替换了name变量")
+        #         print(f"原文>>>{line}")
+        #         print(f"名称>>>{name}")
+        if "/s/" in line:
             raw_link = line
             line = line.replace("提取码", "?提取码")
             if debug:
@@ -226,8 +227,10 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, debug=Fal
     #             print(f"[{key}] 导出失败：{value.get('name')}, 原因：{current_state.get('message')}")
     #             break
     
+    # return
+    
     # 调用 Pan123 导入数据到数据库
-    db = Pan123Database(debug=debug, dbpath=loadSettings("DATABASE_PATH"))
+    db = Pan123Database(debug=True, dbpath=loadSettings("DATABASE_PATH"))
     for key, value in total_json_processed_data.items():
         # 如果处理过了，跳过
         if value.get("processed"):
@@ -245,13 +248,24 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, debug=Fal
         iter_driver = driver.exportShare(shareKey=value.get("link"), sharePwd=value.get("pwd"), parentFileId=0)
         for current_state in iter_driver:
             if current_state.get("isFinish"):
-                db.insertData(
-                    codeHash=getStringHash(current_state.get("message")),
-                    rootFolderName=value.get("name"),
-                    visibleFlag=True,
-                    shareCode=current_state.get("message")
-                    )
-                print(f"[{key}] 导入成功：{value.get('name')}")
+                b64string = current_state.get("message")
+                # 获取目录树
+                content_tree = generateContentTree(b64string)["message"]
+                content_tree = "\n".join(content_tree)
+                print(f"[{key}] 目录树：\n\n{content_tree}")
+                res = input(f"资源名称 >>> {value.get('name')}\n\n是否导入? (y/[n]) >>>")
+                res = res if res else "n"
+                if res != "y":
+                    print(f"[{key}] 跳过：{value.get('name')}, 原因：用户取消")
+                    continue
+                else:                
+                    db.insertData(
+                        codeHash=getStringHash(b64string),
+                        rootFolderName=value.get("name"),
+                        visibleFlag=True,
+                        shareCode=current_state.get("message")
+                        )
+                    # print(f"[{key}] 导入成功：{value.get('name')}")
             elif current_state.get("isFinish") is None:
                 continue
             else:
