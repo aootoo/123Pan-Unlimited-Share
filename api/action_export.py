@@ -1,9 +1,11 @@
+# api/action_export.py
 import json
 import time
 from flask import Response, stream_with_context, current_app 
 from Pan123 import Pan123
 from utils import getStringHash, loadSettings
-from api.api_utils import custom_secure_filename_part, handle_database_storage 
+from api.api_utils import custom_secure_filename_part, handle_database_storage
+from queueManager import QUEUE_MANAGER
 
 DEBUG = loadSettings("DEBUG")
 
@@ -15,115 +17,163 @@ def handle_export_request(data):
     generate_short_code_flag = data.get('generateShortCode', False)
     share_project_flag = data.get('shareProject', False)
 
-    # --- 参数校验 ---
     if not username or not password:
         return Response(json.dumps({"isFinish": False, "message": "用户名和密码不能为空。"}), 
                         mimetype='application/x-ndjson', status=400)
-    if not home_file_path_str: # 允许为空字符串，Pan123内部可能处理为"0"
-         pass # parent_file_id_internal 会处理
-            
     if share_project_flag and not user_specified_base_name_raw:
         return Response(json.dumps({"isFinish": False, "message": "加入资源共享计划时，必须填写根目录名 (分享名)。"}),
                         mimetype='application/x-ndjson', status=400)
-    
-    if share_project_flag: # 如果勾选加入计划，则强制生成短码
+    if share_project_flag:
         generate_short_code_flag = True
 
-    try:
-        # 尝试将 home_file_path_str 转换为整数，如果失败，则按原样使用 (Pan123.py 可能会处理)
-        parent_file_id_internal = int(home_file_path_str)
-    except ValueError:
-        parent_file_id_internal = home_file_path_str  
+    task_description = f"导出_{username[:5]}..._{user_specified_base_name_raw[:10] if user_specified_base_name_raw else '默认名'}"
+    task_id = QUEUE_MANAGER.add_task(task_name=task_description)
+    # current_app.logger.info(f"导出任务 {task_id} ({task_description}) 已添加到队列。") # queue_manager内部已有日志
 
-    cleaned_db_root_name = custom_secure_filename_part(user_specified_base_name_raw)
-    if generate_short_code_flag and not cleaned_db_root_name: # 如果要生成短码但名称为空
-        cleaned_db_root_name = f"导出的分享_{int(time.time())}" # API层面生成默认名
-
-    def generate_export_stream():
-        driver = Pan123(debug=DEBUG)
-        login_success_flag = False
-        final_b64_string_data = None
-        short_share_code_result = None # 用于存储最终的短分享码
-        pan123_op_successful = False
+    def generate_export_stream_with_queue():
+        initial_greeting_sent = False
+        processed_by_queue = False 
+        login_success_flag = False # 必须在 try 外部声明以便 finally 块访问
+        driver = None # 同样，为了注销
 
         try:
+            current_app.logger.info(f"导出任务 {task_id}: 开始排队/处理流程。")
+            # 阶段1: 排队等待
+            while not processed_by_queue:
+                position, is_another_processing = QUEUE_MANAGER.get_task_position_and_is_processing_another(task_id)
+                
+                current_app.logger.debug(f"导出任务 {task_id}: 队列检查 - 位置 {position}, 其他处理中: {is_another_processing}")
+
+                if position == -2: 
+                    yield f"{json.dumps({'isFinish': False, 'message': '任务ID无效、已过期或已被取消，请重试。'})}\n"
+                    current_app.logger.warning(f"导出任务 {task_id} 在队列中未找到或已失效。")
+                    return 
+
+                if position == 0 and not is_another_processing:
+                    if not initial_greeting_sent:
+                        yield f"{json.dumps({'isFinish': None, 'message': '恭喜! 哥们运气真好, 前面竟然 0 人排队! 小小后端, 快给这位爷伺候起来，优先服务!'})}\n"
+                        initial_greeting_sent = True
+                    
+                    if QUEUE_MANAGER.attempt_to_start_processing(task_id):
+                        yield f"{json.dumps({'isFinish': None, 'message': '恭喜义父, 轮到您嘞! 操作即将开始...'})}\n"
+                        processed_by_queue = True 
+                        # current_app.logger.info(f"导出任务 {task_id} 开始执行实际操作。") # queue_manager内部已有日志
+                        break 
+                    else:
+                        current_app.logger.warning(f"导出任务 {task_id}: 在队首但 attempt_to_start_processing 失败。可能是并发或任务已不在队列。")
+                        yield f"{json.dumps({'isFinish': None, 'message': '系统正忙或任务状态变更，仍在尝试获取执行权...'})}\n"
+                
+                elif position >= 0 :
+                    people_ahead = position 
+                    yield f"{json.dumps({'isFinish': None, 'message': f'正在排队中... 前面还有 {people_ahead} 人。'})}\n"
+                    initial_greeting_sent = True
+                
+                else: 
+                    yield f"{json.dumps({'isFinish': False, 'message': f'未知的队列状态 ({position})，请重试。'})}\n"
+                    current_app.logger.error(f"导出任务 {task_id} 遇到非预期的队列状态 {position}。")
+                    return
+
+                if not processed_by_queue:
+                    time.sleep(5)
+
+            # 阶段2: 实际的123网盘操作 
+            if not processed_by_queue:
+                current_app.logger.warning(f"任务 {task_id} (导出) 退出排队循环但 processed_by_queue 仍为 false，任务不执行。")
+                return
+
+            try:
+                parent_file_id_internal = int(home_file_path_str)
+            except ValueError:
+                parent_file_id_internal = home_file_path_str  
+
+            cleaned_db_root_name = custom_secure_filename_part(user_specified_base_name_raw)
+            if generate_short_code_flag and not cleaned_db_root_name: 
+                cleaned_db_root_name = f"导出的分享_{int(time.time())}"
+
+            driver = Pan123(debug=DEBUG)
+            final_b64_string_data = None
+            short_share_code_result = None
+            pan123_op_successful = False
+
             yield f"{json.dumps({'isFinish': None, 'message': '准备登录...'})}\n"
             login_success_flag = driver.doLogin(username=username, password=password)
             if not login_success_flag:
                 yield f"{json.dumps({'isFinish': False, 'message': '登录失败，请检查用户名和密码。'})}\n"
-                return
+                return 
 
             yield f"{json.dumps({'isFinish': None, 'message': '登录成功，开始导出文件列表...'})}\n"
             
             for state in driver.exportFiles(parentFileId=parent_file_id_internal):
+                current_app.logger.debug(f"任务 {task_id} exportFiles state: {state.get('message')[:100] if isinstance(state.get('message'), str) else state.get('message')}")
                 if state.get("isFinish") is True:
                     final_b64_string_data = state["message"]
                     pan123_op_successful = True
-                    yield f"{json.dumps({'isFinish': None, 'message': '文件列表从123网盘导出成功。'})}\n"
                     break 
-                elif state.get("isFinish") is False: # Pan123.py内部的错误
+                elif state.get("isFinish") is False: 
                     yield f"{json.dumps(state)}\n" 
-                    # 考虑到后续可能还有注销操作，这里不直接return，让finally处理注销
-                    # 但导出已失败，所以之后不再进行数据库操作
-                    pan123_op_successful = False # 标记操作失败
-                    break # 跳出循环
-                else: # isFinish: None (进度信息)
+                    pan123_op_successful = False 
+                    break 
+                else: 
                     yield f"{json.dumps(state)}\n"
             
-            if not pan123_op_successful or final_b64_string_data is None:
-                # 如果上面因为 isFinish: False 而 break，这里会执行
-                if not final_b64_string_data: # 确保消息一致性
-                     yield f"{json.dumps({'isFinish': False, 'message': '未能从123网盘获取文件数据。'})}\n"
-                # 已经发送过失败消息了，所以这里可能不需要额外发送，除非是状态未明确的情况  
-                # （如果 pan123_op_successful 为 false 但没有从循环中yield过 False 消息，则此处补充）
-                # 此处保持原样，因循环内的 isFinish:False 已发送消息
-                pass # 确保不覆盖已发送的明确错误
+            if not pan123_op_successful and final_b64_string_data is None:
+                 if pan123_op_successful is not True: # 避免重复发送错误
+                    yield f"{json.dumps({'isFinish': False, 'message': '未能从123网盘获取文件数据，或操作提前终止。'})}\n"
 
-            if pan123_op_successful and generate_short_code_flag: # 只有在网盘导出成功后才尝试存数据库
-                yield f"{json.dumps({'isFinish': None, 'message': '正在处理数据库存储与短分享码...'})}\n"
-                code_hash = getStringHash(final_b64_string_data)
+            if pan123_op_successful: 
+                yield f"{json.dumps({'isFinish': None, 'message': '文件列表从123网盘导出成功。正在进一步处理...'})}\n"
+                if generate_short_code_flag: 
+                    yield f"{json.dumps({'isFinish': None, 'message': '正在处理数据库存储与短分享码...'})}\n"
+                    code_hash = getStringHash(final_b64_string_data)
+                    
+                    db_op_success, db_result_hash, db_log_msgs = handle_database_storage(
+                        code_hash, cleaned_db_root_name, None, 
+                        final_b64_string_data, share_project_flag
+                    )
+                    for msg_item in db_log_msgs: 
+                        yield f"{json.dumps({'isFinish': None, 'message': msg_item})}\n"
+                    if db_op_success and db_result_hash:
+                        short_share_code_result = db_result_hash 
+                        yield f"{json.dumps({'isFinish': None, 'message': f'短分享码处理完成。短码为: {short_share_code_result}'})}\n"
+                    else:
+                        yield f"{json.dumps({'isFinish': None, 'message': '数据库操作未生成新的短分享码或按现有策略处理。长分享码仍然有效。'})}\n"
                 
-                # 调用 handle_database_storage
-                db_op_success, db_result_hash, db_log_msgs = handle_database_storage(
-                    code_hash, 
-                    cleaned_db_root_name, 
-                    None, # visible_flag 由 handle_database_storage 根据 share_project_flag 决定
-                    final_b64_string_data, 
-                    share_project_flag
-                )
-
-                for msg in db_log_msgs: # 输出数据库操作日志
-                    yield f"{json.dumps({'isFinish': None, 'message': msg})}\n"
-                
-                if db_op_success and db_result_hash:
-                    short_share_code_result = db_result_hash # 保存短码以备最终返回
-                    yield f"{json.dumps({'isFinish': None, 'message': f'短分享码处理完成。短码为: {short_share_code_result}'})}\n"
-                else:
-                    # 即使数据库操作不完全成功（如记录已存在），只要长码获取成功，操作仍可继续
-                    # 但短码可能未生成或未更新
-                    yield f"{json.dumps({'isFinish': None, 'message': '数据库操作未生成新的短分享码或按现有策略处理。长分享码仍然有效。'})}\n"
-            
-            # 准备最终的成功响应
-            if pan123_op_successful: # 只有当从123网盘导出成功时，才认为整体操作有机会成功
                 response_payload_dict = {'longShareCode': final_b64_string_data}
-                if short_share_code_result: # 仅当成功获得短分享码时才加入
+                if short_share_code_result: 
                     response_payload_dict['shortShareCode'] = short_share_code_result
-                
                 final_success_message_json_str = json.dumps(response_payload_dict)
                 yield f"{json.dumps({'isFinish': True, 'message': final_success_message_json_str})}\n"
-            # else 部分已在上面循环内或循环后处理了 isFinish:False 的情况
+            
+            current_app.logger.info(f"导出任务 {task_id} 网盘操作部分完成。")
 
+        except GeneratorExit: 
+            current_app.logger.info(f"导出任务 {task_id} 客户端连接已断开 (GeneratorExit)。")
         except Exception as e:
-            current_app.logger.error(f"API Export error in stream: {e}", exc_info=True)
-            yield f"{json.dumps({'isFinish': False, 'message': f'导出过程中服务器发生意外错误: {str(e)}'})}\n"
+            current_app.logger.error(f"API Export 主流程中发生错误 (任务 {task_id}): {e}", exc_info=True)
+            try:
+                yield f"{json.dumps({'isFinish': False, 'message': f'导出过程中服务器发生意外错误: {str(e)}'})}\n"
+            except Exception as yield_err: 
+                current_app.logger.warning(f"导出任务 {task_id}：向客户端发送错误信息时连接已断开: {yield_err}")
         finally:
-            if login_success_flag: # 确保注销
+            # finally 块总是会执行，无论 try 块如何退出（正常完成，return，break，异常）
+            current_app.logger.debug(f"导出任务 {task_id}: 进入 finally 块。processed_by_queue={processed_by_queue}, login_success={login_success_flag}")
+            if login_success_flag and driver: 
                 try:
                     driver.doLogout()
-                    yield f"{json.dumps({'isFinish': None, 'message': '已注销账号。'})}\n"
+                    current_app.logger.info(f"导出任务 {task_id}: 123网盘已注销。")
                 except Exception as final_logout_err:
-                    current_app.logger.error(f"Error during final logout for api_export: {final_logout_err}", exc_info=True)
-                    # 不再向客户端发送此内部错误，避免覆盖主要错误信息
-            current_app.logger.info("Export stream finished.")
+                    current_app.logger.error(f"导出任务 {task_id} 注销时发生错误: {final_logout_err}", exc_info=True)
+            
+            if processed_by_queue:
+                 QUEUE_MANAGER.finish_processing(task_id)
+                 # current_app.logger.info(f"导出任务 {task_id} 已完成，并从队列管理器移除。") # queue_manager内部有日志
+            else:
+                 # 如果任务在排队时客户端断开，processed_by_queue 会是 False
+                 removed = QUEUE_MANAGER.remove_task_if_exists_and_not_processing(task_id)
+                 # if removed: # queue_manager内部有日志
+                 #     current_app.logger.info(f"导出任务 {task_id} 在排队时客户端断开或超时，已从等待队列中移除。")
+                 # else:
+                 #     current_app.logger.warning(f"导出任务 {task_id} 未开始处理，也未能从等待队列中移除（可能已被处理、超时或不存在）。")
+            current_app.logger.info(f"Export stream finished for task {task_id}.")
 
-    return Response(stream_with_context(generate_export_stream()), mimetype='application/x-ndjson')
+    return Response(stream_with_context(generate_export_stream_with_queue()), mimetype='application/x-ndjson')
