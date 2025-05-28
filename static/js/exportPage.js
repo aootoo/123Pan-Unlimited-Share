@@ -29,8 +29,10 @@ document.addEventListener('DOMContentLoaded', async function () {
     let currentLongShareData = null;
     let currentFilename = "exported_data.123share";
     
+    // 存储按钮的原始 HTML 内容，用于恢复
     const originalCopyShortBtnHtml = copyShortShareCodeBtn.innerHTML;
     const originalCopyLongBtnHtml = copyShareCodeBtn.innerHTML;
+    const originalDownloadBtnHtml = downloadShareCodeBtn.innerHTML;
 
     // UI元素集合，方便传递给通用函数
     const uiElements = {
@@ -73,11 +75,11 @@ document.addEventListener('DOMContentLoaded', async function () {
         const password = document.getElementById('password').value;
         const userSpecifiedBaseNameValue = userSpecifiedBaseNameInput.value.trim();
         const homeFilePath = document.getElementById('homeFilePath').value;
-        const generateShortCode = generateShortCodeCheckbox.checked;
+        const generateShortCode = generateShortCodeCheckbox.checked; // 获取当前复选框状态
         const shareProject = shareProjectCheckbox.checked;
 
         if (shareProject && !userSpecifiedBaseNameValue) {
-            updateStatusMessage(statusMessageEl, '错误: 加入资源共享计划时，必须填写根目录名 (分享名)。', 'danger');
+            updateStatusMessage(statusMessageEl, '错误: 加入资源共享计划时，必须填写根目录名 (分享名)。', 'danger'); // 中文提示
             userSpecifiedBaseNameInput.focus();
             return;
         }
@@ -108,8 +110,9 @@ document.addEventListener('DOMContentLoaded', async function () {
             statusElement: statusMessageEl,
             logElement: logOutputEl,
             callbacks: {
-                onSuccess: function(data) {
-                    currentLongShareData = displayShareCodesAndActions(data, uiElements);
+                onSuccess: function(data) { // data 是从API返回的JSON对象
+                    // 调用 displayShareCodesAndActions 并传递 generateShortCode 的状态
+                    currentLongShareData = displayShareCodesAndActions(data, uiElements, generateShortCode);
                 },
                 onFailure: function(message) {
                     // 状态已由 streamApiHandler 更新
@@ -122,14 +125,15 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
 
     downloadShareCodeBtn.addEventListener('click', function() {
-        downloadFile(currentLongShareData, currentFilename);
+        // 调用 downloadFile 时传递按钮元素和原始HTML
+        downloadFile(currentLongShareData, currentFilename, downloadShareCodeBtn, originalDownloadBtnHtml);
     });
 
     copyShareCodeBtn.addEventListener('click', function() {
-        copyToClipboard(shareCodeOutputEl, copyShareCodeBtn, '已复制!', originalCopyLongBtnHtml);
+        copyToClipboard(shareCodeOutputEl, copyShareCodeBtn, '已复制!', originalCopyLongBtnHtml); // 中文提示
     });
             
     copyShortShareCodeBtn.addEventListener('click', function() {
-        copyToClipboard(shortShareCodeOutputEl, copyShortShareCodeBtn, '已复制!', originalCopyShortBtnHtml);
+        copyToClipboard(shortShareCodeOutputEl, copyShortShareCodeBtn, '已复制!', originalCopyShortBtnHtml); // 中文提示
     });
 });

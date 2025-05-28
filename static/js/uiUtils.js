@@ -72,23 +72,44 @@ function resetResultDisplay(elements) {
  */
 async function copyToClipboard(textElement, buttonElement, copiedText, originalButtonHtml) {
     if (!textElement || !textElement.value) {
-        alert('没有可复制的内容。');
+        alert('没有可复制的内容。'); // 中文提示
         return;
     }
+    
+    // 保存按钮的原始 class 列表，以便恢复
+    const originalClasses = Array.from(buttonElement.classList);
+
     try {
         await navigator.clipboard.writeText(textElement.value);
         if (buttonElement) {
-            const tempOriginalHtml = buttonElement.innerHTML; // 保存实际的原始HTML
             buttonElement.innerHTML = `
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-lg me-1" viewBox="0 0 16 16"><path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022z"/></svg>
-                ${copiedText}`;
+                ${copiedText}`; // copiedText 应为 "已复制!"
+            // 成功时可以根据设计选择是否改变按钮颜色，这里保持原样或可添加btn-success然后移除
             setTimeout(() => {
-                buttonElement.innerHTML = originalButtonHtml || tempOriginalHtml; // 优先使用传入的originalButtonHtml
+                buttonElement.innerHTML = originalButtonHtml;
+                // buttonElement.className = originalClasses.join(' '); // 确保恢复原始类
             }, 2000);
         }
     } catch (err) {
-        alert('复制失败，请尝试手动复制。');
-        console.error('复制到剪贴板失败:', err);
+        console.error('复制到剪贴板失败:', err); // 中文注释
+        if (buttonElement) {
+            buttonElement.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle me-1" viewBox="0 0 16 16">
+                  <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                  <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                </svg>
+                复制失败`; // 中文提示
+            buttonElement.classList.remove('btn-secondary', 'btn-primary'); // 移除原有颜色类
+            buttonElement.classList.add('btn-danger'); // 添加错误颜色类
+            setTimeout(() => {
+                buttonElement.innerHTML = originalButtonHtml;
+                // 恢复原始类，很重要
+                buttonElement.className = originalClasses.join(' '); 
+            }, 2000); // 失败提示显示时间稍长
+        }
+        // 可以选择是否保留 alert 作为一种极致的后备方案，但理想情况下按钮反馈足够
+        // alert('复制失败，请尝试手动复制。');
     }
 }
 
@@ -96,13 +117,36 @@ async function copyToClipboard(textElement, buttonElement, copiedText, originalB
  * 下载文件。
  * @param {string} content 文件内容。
  * @param {string} filename 下载时的文件名。
+ * @param {HTMLButtonElement} [buttonElement] 可选，触发下载的按钮元素，用于UI反馈。
+ * @param {string} [originalButtonHtml] 可选，按钮的原始HTML内容。
  * @param {string} [mimeType='application/octet-stream'] 文件的MIME类型。
  */
-function downloadFile(content, filename, mimeType = 'application/octet-stream') {
+function downloadFile(content, filename, buttonElement, originalButtonHtml, mimeType = 'application/octet-stream') {
     if (!content) {
-        alert('没有可下载的数据。');
+        // alert('没有可下载的数据。'); // 中文提示，如果需要的话
+        if (buttonElement && originalButtonHtml) { // 如果内容为空也算一种失败，触发UI
+            const originalClasses = Array.from(buttonElement.classList);
+            buttonElement.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle me-1" viewBox="0 0 16 16">
+                  <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                  <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                </svg>
+                下载失败`; // 中文提示
+             buttonElement.classList.remove('btn-primary', 'btn-secondary'); // 移除非danger类
+            buttonElement.classList.add('btn-danger');
+             setTimeout(() => {
+                buttonElement.innerHTML = originalButtonHtml;
+                buttonElement.className = originalClasses.join(' ');
+            }, 2500);
+        }
         return;
     }
+    
+    let originalClasses;
+    if (buttonElement) {
+        originalClasses = Array.from(buttonElement.classList);
+    }
+
     try {
         const blob = new Blob([content], { type: mimeType });
         const link = document.createElement('a');
@@ -112,9 +156,34 @@ function downloadFile(content, filename, mimeType = 'application/octet-stream') 
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(link.href);
+        
+        // 下载成功通常由浏览器本身处理，按钮UI不强制改变。
+        // 如果需要，可以像复制成功那样添加一个短暂的成功提示。
+        // 例如:
+        // if (buttonElement && originalButtonHtml) {
+        //     buttonElement.innerHTML = `下载已开始`; // 或者用一个勾号图标
+        //     setTimeout(() => {
+        //         buttonElement.innerHTML = originalButtonHtml;
+        //     }, 2000);
+        // }
+
     } catch (e) {
-        console.error("创建下载时出错:", e);
-        alert("创建下载文件失败: " + e.message);
+        console.error("创建下载时出错:", e); // 中文注释
+        // alert("创建下载文件失败: " + e.message); // 中文提示
+        if (buttonElement && originalButtonHtml) {
+            buttonElement.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle me-1" viewBox="0 0 16 16">
+                  <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                  <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                </svg>
+                下载失败`; // 中文提示
+            buttonElement.classList.remove('btn-primary', 'btn-secondary');
+            buttonElement.classList.add('btn-danger');
+             setTimeout(() => {
+                buttonElement.innerHTML = originalButtonHtml;
+                if(originalClasses) buttonElement.className = originalClasses.join(' ');
+            }, 2500);
+        }
     }
 }
 
@@ -130,9 +199,10 @@ function downloadFile(content, filename, mimeType = 'application/octet-stream') 
  * @param {HTMLElement} [elements.shortShareCodeAreaElement] 短分享码区域。
  * @param {HTMLTextAreaElement} [elements.shortShareCodeOutputElement] 短分享码输出框。
  * @param {HTMLElement} [elements.copyShortShareCodeBtnElement] 复制短分享码按钮。
+ * @param {boolean} generateShortCodeChecked 指示用户是否勾选了“生成短分享码”。
  * @returns {string|null} 返回长分享码数据，如果没有则为null。
  */
-function displayShareCodesAndActions(data, elements) {
+function displayShareCodesAndActions(data, elements, generateShortCodeChecked) {
     let longShareData = null;
     elements.actionButtonsAreaElement.style.display = 'block';
 
@@ -143,17 +213,20 @@ function displayShareCodesAndActions(data, elements) {
         if (elements.copyShareCodeBtnElement) elements.copyShareCodeBtnElement.style.display = 'block';
         if (elements.downloadShareCodeBtnElement) elements.downloadShareCodeBtnElement.style.display = 'block';
     } else {
+        // 如果没有长分享码，则隐藏长分享码相关的所有UI
         if (elements.longShareCodeAreaElement) elements.longShareCodeAreaElement.style.display = 'none';
         if (elements.copyShareCodeBtnElement) elements.copyShareCodeBtnElement.style.display = 'none';
         if (elements.downloadShareCodeBtnElement) elements.downloadShareCodeBtnElement.style.display = 'none';
     }
 
-    if (data.shortShareCode) {
+    // 根据 generateShortCodeChecked 参数决定是否显示短码相关UI
+    if (generateShortCodeChecked && data.shortShareCode) {
         if (elements.shortShareCodeOutputElement) elements.shortShareCodeOutputElement.value = data.shortShareCode;
         if (elements.shortShareCodeAreaElement) elements.shortShareCodeAreaElement.style.display = 'block';
         if (elements.copyShortShareCodeBtnElement) elements.copyShortShareCodeBtnElement.style.display = 'block';
     } else {
-         if (elements.shortShareCodeAreaElement) elements.shortShareCodeAreaElement.style.display = 'none';
+         // 如果未勾选生成短码，或勾选了但API未返回短码，则隐藏短码相关UI
+        if (elements.shortShareCodeAreaElement) elements.shortShareCodeAreaElement.style.display = 'none';
         if (elements.copyShortShareCodeBtnElement) elements.copyShortShareCodeBtnElement.style.display = 'none';
     }
     return longShareData;
@@ -175,7 +248,7 @@ function isAvailableRegionJS() {
     geoCheckPromise = new Promise((resolve) => {
         // 定义一个全局回调函数，JSONP脚本加载后会调用它
         window.jsonpGeoCallback = function(ip, location, asn, org) {
-            // console.log("JSONP地理位置信息:", ip, location, asn, org);
+            // console.log("JSONP地理位置信息:", ip, location, asn, org); // 中文注释
             // 清理全局回调函数，避免内存泄漏和冲突
             delete window.jsonpGeoCallback;
             // 从DOM中移除JSONP的script标签
@@ -185,7 +258,7 @@ function isAvailableRegionJS() {
             }
 
             if (typeof location !== 'string') {
-                console.warn("JSONP回调: location参数不是字符串, 默认为允许访问。");
+                console.warn("JSONP回调: location参数不是字符串, 默认为允许访问。"); // 中文注释
                 resolve(true);
                 return;
             }
@@ -193,10 +266,10 @@ function isAvailableRegionJS() {
             // 检查 location 字符串是否包含"中国"并且不包含"香港", "澳门", "台湾"
             if (location.includes("中国") && 
                 !["香港", "澳门", "台湾"].some(keyword => location.includes(keyword))) {
-                // console.log(`当前IP地址检测为中国大陆 (基于JSONP: ${location}), 根据策略将限制访问。`);
+                // console.log(`当前IP地址检测为中国大陆 (基于JSONP: ${location}), 根据策略将限制访问。`); // 中文注释
                 resolve(false); // 中国大陆IP
             } else {
-                // console.log(`当前IP地址检测为非中国大陆或港澳台 (基于JSONP: ${location}), 允许访问。`);
+                // console.log(`当前IP地址检测为非中国大陆或港澳台 (基于JSONP: ${location}), 允许访问。`); // 中文注释
                 resolve(true); // 非中国大陆IP或港澳台
             }
         };
@@ -208,7 +281,7 @@ function isAvailableRegionJS() {
         
         // 处理脚本加载失败的情况 (例如网络错误，或ping0.cc服务不可用)
         script.onerror = function() {
-            console.error("加载JSONP地理位置脚本失败。默认为允许访问。");
+            console.error("加载JSONP地理位置脚本失败。默认为允许访问。"); // 中文注释
             delete window.jsonpGeoCallback; // 清理
             const scriptTag = document.getElementById('jsonpGeoScript');
             if (scriptTag) {
@@ -222,7 +295,7 @@ function isAvailableRegionJS() {
         // 设置一个超时，以防JSONP请求一直没有响应
         setTimeout(() => {
             if (window.jsonpGeoCallback) { // 如果回调还没有被调用
-                console.warn("JSONP地理位置请求超时。默认为允许访问。");
+                console.warn("JSONP地理位置请求超时。默认为允许访问。"); // 中文注释
                 delete window.jsonpGeoCallback;
                 const scriptTag = document.getElementById('jsonpGeoScript');
                 if (scriptTag) {

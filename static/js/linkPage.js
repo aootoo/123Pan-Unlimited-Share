@@ -29,8 +29,10 @@ document.addEventListener('DOMContentLoaded', async function () {
     let currentLongShareData = null; 
     let currentFilename = "shared_link_data.123share";
     
+    // 存储按钮的原始 HTML 内容，用于恢复
     const originalCopyShortBtnHtml = copyShortShareCodeBtn.innerHTML;
     const originalCopyLongBtnHtml = copyShareCodeBtn.innerHTML;
+    const originalDownloadBtnHtml = downloadShareCodeBtn.innerHTML;
 
     const uiElements = {
         statusMessageElement: statusMessageEl,
@@ -92,11 +94,11 @@ document.addEventListener('DOMContentLoaded', async function () {
         const sharePwd = document.getElementById('sharePwd').value;
         const parentFileId = document.getElementById('parentFileId').value;
         const userSpecifiedBaseNameValue = userSpecifiedBaseNameInput.value.trim();
-        const generateShortCode = generateShortCodeCheckbox.checked;
+        const generateShortCode = generateShortCodeCheckbox.checked; // 获取当前复选框状态
         const shareProject = shareProjectCheckbox.checked;
 
         if (shareProject && !userSpecifiedBaseNameValue) {
-            updateStatusMessage(statusMessageEl, '错误: 加入资源共享计划时，必须填写根目录名 (分享名)。', 'danger');
+            updateStatusMessage(statusMessageEl, '错误: 加入资源共享计划时，必须填写根目录名 (分享名)。', 'danger'); // 中文提示
             userSpecifiedBaseNameInput.focus();
             return;
         }
@@ -125,8 +127,9 @@ document.addEventListener('DOMContentLoaded', async function () {
             statusElement: statusMessageEl,
             logElement: logOutputEl,
             callbacks: {
-                onSuccess: function(data) {
-                    currentLongShareData = displayShareCodesAndActions(data, uiElements);
+                onSuccess: function(data) { // data 是从API返回的JSON对象
+                    // 调用 displayShareCodesAndActions 并传递 generateShortCode 的状态
+                    currentLongShareData = displayShareCodesAndActions(data, uiElements, generateShortCode);
                 },
                 onFailure: function(message) { /* Stream handler updates UI */ },
                 onRequestError: function(error) { /* Stream handler updates UI */ }
@@ -135,14 +138,15 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
 
     downloadShareCodeBtn.addEventListener('click', function() {
-        downloadFile(currentLongShareData, currentFilename);
+        // 调用 downloadFile 时传递按钮元素和原始HTML
+        downloadFile(currentLongShareData, currentFilename, downloadShareCodeBtn, originalDownloadBtnHtml);
     });
 
     copyShareCodeBtn.addEventListener('click', function() {
-        copyToClipboard(shareCodeOutputEl, copyShareCodeBtn, '已复制!', originalCopyLongBtnHtml);
+        copyToClipboard(shareCodeOutputEl, copyShareCodeBtn, '已复制!', originalCopyLongBtnHtml); // 中文提示
     });
             
     copyShortShareCodeBtn.addEventListener('click', function() {
-        copyToClipboard(shortShareCodeOutputEl, copyShortShareCodeBtn, '已复制!', originalCopyShortBtnHtml);
+        copyToClipboard(shortShareCodeOutputEl, copyShortShareCodeBtn, '已复制!', originalCopyShortBtnHtml); // 中文提示
     });
 });
