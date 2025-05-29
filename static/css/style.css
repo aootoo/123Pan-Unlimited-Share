@@ -14,8 +14,6 @@
     --input-focus-shadow: rgba(0, 86, 179, 0.25);
     --border-radius-card: 20px; 
     --border-radius-elements: 10px; 
-    /* --light-blue-hover: #d1e9ff; */ /* 此变量在当前需求中被 --standard-light-gray-hover 替代 */
-    /* --active-item-hover-blue: #5c98e0; */ /* 此变量在当前需求中被 --primary-dark-blue-hover 替代 */
     --standard-light-gray-hover: #e9ecef; /* 标准1: 未选中资源悬停时的浅灰色，也用于Tab和返回按钮悬停 */
 }
 
@@ -23,6 +21,7 @@ body {
     background-color: var(--background-blue);
     font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif; 
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     min-height: 100vh;
@@ -34,10 +33,19 @@ body {
 
 .main-container {
     position: relative;
-    max-width: 650px; 
+    max-width: 650px; /* 默认最大宽度，管理员页面会覆盖此值 */
     width: 100%;
-    padding: 0;
+    padding: 0; 
+    /* margin-top: 10px; /* 注释掉或根据整体布局调整，因为flex布局会处理居中 */
+    /* margin-bottom: 10px; */
+    /* 新增: 当内容超出一屏时，允许从顶部开始 */
+    margin: auto 0; /* 垂直方向自动边距（如果flex允许），水平方向0 */
+    /* display: flex; /* 确保内部内容按预期排列（如果需要）*/
+    /* flex-direction: column; */
 }
+
+/* 当.main-container内容较少，可以被body的justify-content:center居中 */
+/* 当.main-container内容较多，超出视口时，它会从body的顶部开始排列，而不是强行居中 */
 
 .blur-backdrop {
     position: absolute;
@@ -63,6 +71,8 @@ body {
     border: 1px solid var(--border-color);
     backdrop-filter: blur(5px); 
     -webkit-backdrop-filter: blur(5px);
+    width: 100%; /* 确保卡片占满.main-container的宽度 */
+    box-sizing: border-box;
 }
 
 .card-title {
@@ -138,26 +148,25 @@ body {
 }
 
 /* 查看目录树按钮 (.view-content-tree-btn) 的特定样式 */
-.view-content-tree-btn {
-    background-color: var(--primary-dark-blue); /* 默认：蓝色背景白色文字 */
-    border: 1px solid var(--primary-dark-blue); /* 边框颜色与背景一致 */
-    padding: 0.375rem 0.75rem; /* 适配 Bootstrap .btn-sm 的内边距 */
-    font-size: 1rem; /*  调整图标大小，如果需要可以通过 i 标签的 font-size 控制 */
-    line-height: 1.5; /* Bootstrap .btn 的默认行高 */
+.view-content-tree-btn { /* 用于 importPage.js 中的按钮 */
+    background-color: var(--primary-dark-blue); 
+    border: 1px solid var(--primary-dark-blue); 
+    padding: 0.375rem 0.75rem; 
+    font-size: 1rem; 
+    line-height: 1.5; 
 }
 .view-content-tree-btn:hover, .view-content-tree-btn:focus {
-    background-color: var(--primary-dark-blue-hover); /* 悬停：深蓝色背景白色文字 */
+    background-color: var(--primary-dark-blue-hover); 
     border-color: var(--primary-dark-blue-hover);
-    color: white; /* 确保文字颜色依然是白色 */
+    color: white; 
 }
 .view-content-tree-btn:active {
-    background-color: var(--button-active-green) !important; /* 按下：绿色背景 */
+    background-color: var(--button-active-green) !important; 
     border-color: var(--button-active-green-border) !important;
-    color: white !important; /* 按下时文字依然是白色 */
-     box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125); /* Bootstrap 按下效果 */
+    color: white !important; 
+    box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125); 
 }
-.public-share-item .view-content-tree-btn {
-    /* 此处可以添加特定于列表内按钮的微调，如更小的 padding */
+.public-share-item .view-content-tree-btn { /* 导入页公共资源列表内按钮 специфични стилове */
     padding: 0.2rem 0.4rem; 
     font-size: 0.8rem; 
     line-height: 1;
@@ -207,17 +216,16 @@ body {
     background-color: var(--primary-dark-blue); 
     border-color: var(--primary-dark-blue) var(--primary-dark-blue) var(--card-background); 
 }
-/* 修改：未选中的Tab按钮，鼠标悬停在上方，颜色与“标准1”一致 */
 .nav-tabs .nav-link:not(.active):hover {
-    background-color: var(--standard-light-gray-hover); /* 标准1的浅灰色 */
-    border-color: var(--standard-light-gray-hover) var(--standard-light-gray-hover) var(--border-color); /* 边框协调，底部用中性色 */
-    color: var(--primary-dark-blue); /* 文字颜色保持深蓝以确保对比 */
+    background-color: var(--standard-light-gray-hover); 
+    border-color: var(--standard-light-gray-hover) var(--standard-light-gray-hover) var(--border-color); 
+    color: var(--primary-dark-blue); 
 }
 .nav-tabs {
     border-bottom-color: var(--border-color); 
 }
 
-.tab-content {
+.tab-content { /* 此样式也可能影响 admin_dashboard.html 的 tab 内容区 */
     border: 1px solid var(--border-color); 
     border-top: 0;
     padding: 1.5rem 1.25rem; 
@@ -229,7 +237,6 @@ body {
 
 /* 公共资源列表项样式 */
 .public-share-item {
-    /* cursor: pointer; -- 现在由内部 textContainer 控制选择导入 */
     padding: 0.75rem 1rem;
     border: 1px solid #e0e0e0;
     border-radius: var(--border-radius-elements); 
@@ -237,12 +244,10 @@ body {
     background-color: #f8f9fa; 
     transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
 }
-/* 未选中资源，鼠标悬停变浅灰色 (“标准1”) */
 .public-share-item:not(.active):hover {
     background-color: var(--standard-light-gray-hover); 
-    border-color: #d0d0d0; /* 边框可略深于背景 */
+    border-color: #d0d0d0; 
 }
-/* 修改：已选中的资源，未悬停时，颜色与“开始导入”按钮默认背景色一致 */
 .public-share-item.active { 
     background-color: var(--primary-dark-blue); 
     color: #fff; 
@@ -250,13 +255,11 @@ body {
 }
 .public-share-item.active .share-name,
 .public-share-item.active .share-timestamp {
-    color: #fff; /* 确保内部文字白色 */
+    color: #fff; 
 }
-/* 修改：已选中的资源，鼠标悬停时，颜色与鼠标悬停在“开始导入”按钮上方时的颜色一致 */
 .public-share-item.active:hover {
     background-color: var(--primary-dark-blue-hover); 
     border-color: var(--primary-dark-blue-hover); 
-    /* 文字颜色已由 .public-share-item.active 设为白色，悬停时保持 */
 }
 
 .public-share-item .share-name {
@@ -266,9 +269,8 @@ body {
     margin-bottom: 0.25rem;
     font-size: 0.95rem;
     transition: color 0.15s ease-in-out; 
-    /* 确保文件名可以换行且不会溢出其容器 */
-    word-wrap: break-word; /* 或者 word-break: break-all; 如果需要更强的断词 */
-    white-space: normal; /* 确保可以换行 */
+    word-wrap: break-word; 
+    white-space: normal; 
 }
 .public-share-item .share-timestamp {
     font-size: 0.8em;
@@ -278,7 +280,7 @@ body {
 #publicSharesListContainer { 
     max-height: 280px;
     overflow-y: auto;
-    overflow-x: hidden; /* 新增：禁止横向滚动 */
+    overflow-x: hidden; 
     margin-bottom: 1rem;
     border: 1px solid #dee2e6;
     padding: 0.75rem; 
@@ -286,65 +288,72 @@ body {
     background-color: #fff; 
 }
 
-/* 目录树模态框样式 */
-#contentTreeModal .modal-body {
-    padding-bottom: 0.5rem; /* 减少底部内边距，为内容区域腾出更多空间 */
+/* 目录树模态框样式 (importPage 和 adminDashboardPage 共用) */
+#contentTreeModal .modal-body, /* admin_dashboard.html 使用的是 #contentTreeModal */
+.modal-dialog-scrollable .modal-body /* 通用可滚动模态框 */
+{
+    padding-bottom: 0.5rem; 
 }
-#contentTreeDisplayArea {
-    max-height: calc(70vh - 150px); /* 视口高度减去模态框头部、脚部和搜索框的大致高度 */
-    min-height: 200px; /* 保证一个最小高度 */
+#contentTreeDisplayArea, /* ID for importPage */
+#contentTreeDisplayAreaAdmin /* ID for adminDashboardPage */
+{
+    max-height: calc(70vh - 150px); 
+    min-height: 200px; 
     overflow-y: auto;
     font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace;
-    font-size: 0.8rem; /* 更紧凑的字体大小 */
+    font-size: 0.8rem; 
     color: #333;
-    background-color: #f8f9fa; /* 轻微背景色以区分 */
+    background-color: #f8f9fa; 
     border: 1px solid #dee2e6;
     border-radius: var(--border-radius-elements);
     padding: 0.5rem;
 }
-#contentTreeDisplayArea div { /* 每一行目录 */
-    padding: 1px 5px; /* 进一步减少行间距和内边距 */
-    white-space: pre; /* 保持空格和缩进，但允许自动换行长文件名 */
-    word-break: break-all; /* 如果某个文件名特别长，则强制换行 */
-    border-bottom: 1px dotted #eee; /* 非常浅的分隔线，可选 */
+#contentTreeDisplayArea div, /* div for importPage */
+#contentTreeDisplayAreaAdmin div /* div for adminDashboardPage */
+{ 
+    padding: 1px 5px; 
+    white-space: pre; 
+    word-break: break-all; 
+    border-bottom: 1px dotted #eee; 
 }
-#contentTreeDisplayArea div:last-child {
+#contentTreeDisplayArea div:last-child,
+#contentTreeDisplayAreaAdmin div:last-child 
+{
     border-bottom: none;
 }
-#contentTreeSearchInput {
-    font-size: 0.9rem; /* 搜索框字体大小 */
+
+#contentTreeSearchInput, /* ID for importPage */
+#contentTreeSearchInputAdmin /* ID for adminDashboardPage */
+{
+    font-size: 0.9rem;
 }
 
-/* 修改：“返回首页”和“返回用户首页”等按钮的悬停效果，颜色与“标准1”一致 */
-/* 选择器针对具体的按钮实例或其容器，以避免不必要的全局覆盖 */
+/* “返回首页”和“返回用户首页”等按钮的悬停效果 */
 .content-card .btn.btn-sm.btn-outline-secondary:hover,
-.container.main-container > .content-card .btn.btn-sm.btn-outline-secondary:hover, /* admin_login.html */
-.navbar-dark .navbar-nav .btn.btn-sm.btn-outline-light:hover, /* admin_dashboard.html */
-.navbar-dark .navbar-nav .btn.btn-sm.btn-outline-info:hover { /* admin_dashboard.html */
-    background-color: var(--standard-light-gray-hover) !important; 
-    border-color: var(--standard-light-gray-hover) !important; /* 边框颜色也统一为浅灰 */
-    color: var(--primary-dark-blue) !important; /* 文字颜色改为深蓝，确保在浅灰背景上的对比度 */
-}
-
-.tab-pane .table-responsive {
-    max-height: 65vh;
-    overflow-y: auto;
+.container.main-container > .content-card .btn.btn-sm.btn-outline-secondary:hover,
+/* 更新Admin Dashboard中Navbar按钮的悬停效果，使用内联样式中定义的颜色 */
+.admin-navbar .navbar-nav .btn.btn-sm:hover
+{ /* 这是一个比较通用的选择器，如果admin-navbar中的按钮有特定class，最好用那个 */
+    background-color: var(--primary-dark-blue) !important; /* 悬停时背景用主题深蓝 */
+    color: white !important; /* 文字变白 */
+    border-color: var(--primary-dark-blue) !important; /* 边框也用主题深蓝 */
 }
 
 /* 响应式调整 */
 @media (max-width: 768px) {
     body {
         padding: 10px; 
+        /* align-items: flex-start; /* 已在上面默认设置 */
     }
     .content-card {
         padding: 25px 20px; 
-        margin: 10px 0; 
+        margin: 10px 0; /* 确保小屏幕也有上下边距 */
     }
     .card-title {
         font-size: 1.5rem; 
         margin-bottom: 1.5rem;
     }
-    .form-control, .custom-btn, .btn, .view-content-tree-btn { /* 应用到所有相关按钮 */
+    .form-control, .custom-btn, .btn, .view-content-tree-btn { 
         font-size: 0.95rem; 
         padding-top: 0.8rem; 
         padding-bottom: 0.8rem;
@@ -353,23 +362,31 @@ body {
          padding-left: 1rem;
          padding-right: 1rem;
     }
-    /* 确保 view-content-tree-btn 在小屏幕上也有合适的 padding */
-    .view-content-tree-btn {
+    .view-content-tree-btn { /* importPage.js */
         padding-left: 0.75rem;
         padding-right: 0.75rem;
+    }
+     /* admin dashboard 操作按钮在小屏幕上保持大小 */
+    .admin-dashboard-content-card .action-buttons .btn {
+        font-size: 0.75rem; 
+        padding: 0.25rem 0.5rem;
     }
     .form-group, .mb-3 {
         margin-bottom: 1.25rem !important;
     }
-    .nav-tabs .nav-link {
+    .nav-tabs .nav-link { /* importPage.js */
         padding: 0.6rem 1rem; 
         font-size: 0.9rem;
+    }
+    .nav-pills .nav-link { /* admin_dashboard.html */
+        padding: 0.5rem 0.9rem;
+        font-size: 0.85rem;
     }
     .tab-content {
         padding: 1rem 0.75rem;
     }
-    #contentTreeDisplayArea {
-        font-size: 0.75rem; /* 在小屏幕上进一步缩小目录字体 */
+    #contentTreeDisplayArea, #contentTreeDisplayAreaAdmin {
+        font-size: 0.75rem; 
     }
 }
 
@@ -384,18 +401,25 @@ body {
     .form-label {
         font-size: 0.9rem;
     }
-    .form-control, .custom-btn, .btn, .view-content-tree-btn { /* 应用到所有相关按钮 */
+    /* 通用按钮调整 */
+    .form-control, .custom-btn, .btn, .view-content-tree-btn { 
         font-size: 0.9rem;
     }
-    .nav-tabs .nav-link {
+    /* Tab 链接调整 */
+    .nav-tabs .nav-link { /* importPage.js */
         font-size: 0.85rem;
         padding: 0.5rem 0.75rem;
     }
-    .custom-btn svg, .btn svg, .view-content-tree-btn svg, .view-content-tree-btn i { /* 确保图标大小也响应 */
+     .nav-pills .nav-link { /* admin_dashboard.html */
+        padding: 0.4rem 0.7rem;
+        font-size: 0.8rem;
+    }
+    /* 图标和输入组内按钮 */
+    .custom-btn svg, .btn svg, .view-content-tree-btn svg, .view-content-tree-btn i { 
         width: 1em;
         height: 1em;
     }
-    .input-group .btn, .input-group .view-content-tree-btn { /* 确保 input-group 内的按钮在小屏上大小合适 */
+    .input-group .btn, .input-group .view-content-tree-btn { 
         font-size: 0.85rem; 
         padding: 0.375rem 0.75rem;
     }
