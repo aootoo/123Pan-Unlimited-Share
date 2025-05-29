@@ -29,6 +29,10 @@ ADMIN_PASSWORD: "123456"
 # 密钥, 用于加密 cookies, 如果你要部署本网站, 并且开放给其他用户使用, 请务必修改
 SECRET_KEY: "114514"
 
-# 是否开启调试模式 (保持不动即可)
-DEBUG: false
+# 日志保存目录, 一般不动
+LOG_DIR: "./logs"
+# 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
+# 如果你想正常使用, 建议使用 WARNING
+# 如果你想反馈 bug, 使用 DEBUG
+LOGGING_LEVEL: "WARNING"
 ```
