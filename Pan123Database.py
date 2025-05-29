@@ -197,12 +197,54 @@ class Pan123Database:
             logger.debug(f"通过 codeHash '{codeHash}' 未查询到数据")
             return None
 
-    def listData(self, visibleFlag: bool = True):
+    def listData(self, visibleFlag: bool = True, page: int = 1):
         # 只展示visibleFlag为True (公开且审核通过) 的数据
-        # 返回 [(codeHash, rootFolderName, timeStamp), ...]
-        self.database.execute("SELECT codeHash, rootFolderName, timeStamp FROM PAN123DATABASE WHERE visibleFlag=? ORDER BY timeStamp DESC", (visibleFlag,))
-        return self.database.fetchall()
-    
+        # 返回 [(codeHash, rootFolderName, timeStamp), ...], is_end_page
+        if page < 1:
+            page = 1
+        limit = 100
+        offset = (page - 1) * limit
+
+        # 获取总记录数
+        self.database.execute("SELECT COUNT(*) FROM PAN123DATABASE WHERE visibleFlag=?", (visibleFlag,))
+        total_records = self.database.fetchone()[0]
+        
+        self.database.execute(
+            "SELECT codeHash, rootFolderName, timeStamp FROM PAN123DATABASE WHERE visibleFlag=? ORDER BY timeStamp DESC LIMIT ? OFFSET ?",
+            (visibleFlag, limit, offset)
+        )
+        results = self.database.fetchall()
+        
+        is_end_page = (page * limit) >= total_records
+        
+        return results, is_end_page
+
+    def searchDataByName(self, rootFolderName: str, page: int = 1):
+        # 根据 rootFolderName 模糊搜索公开的分享 (visibleFlag=True)
+        # 返回 [(codeHash, rootFolderName, timeStamp), ...], is_end_page
+        if page < 1:
+            page = 1
+        limit = 100
+        offset = (page - 1) * limit
+        search_pattern = f"%{rootFolderName}%"
+
+        # 获取符合搜索条件的总记录数
+        self.database.execute(
+            "SELECT COUNT(*) FROM PAN123DATABASE WHERE rootFolderName LIKE ? AND visibleFlag = 1", # visibleFlag=True
+            (search_pattern,)
+        )
+        total_records = self.database.fetchone()[0]
+
+        self.database.execute(
+            "SELECT codeHash, rootFolderName, timeStamp FROM PAN123DATABASE WHERE rootFolderName LIKE ? AND visibleFlag = 1 ORDER BY timeStamp DESC LIMIT ? OFFSET ?",
+            (search_pattern, limit, offset)
+        )
+        results = self.database.fetchall()
+
+        is_end_page = (page * limit) >= total_records
+        
+        return results, is_end_page
+
     def deleteData(self, codeHash:str):
         self.database.execute("SELECT codeHash FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
         if self.database.fetchone() is None:
@@ -213,19 +255,56 @@ class Pan123Database:
         logger.warning(f"已删除 codeHash: {codeHash}") # 高敏感度操作, 用 warning 级别
         return True # True 表示成功删除
 
-    def listAllDataForAdmin(self):
-        # 为 admin 界面获取所有数据，稍后在 Python 中分类
-        self.database.execute("SELECT codeHash, rootFolderName, shareCode, timeStamp, visibleFlag FROM PAN123DATABASE ORDER BY timeStamp DESC")
-        result = []
-        for codeHash, rootFolderName, shareCode, timeStamp, visibleFlag in self.database.fetchall():
-            result.append((
+    def getSharesByStatusPaged(self, status_filter: str, page: int = 1):
+        # status_filter: "approved", "pending", "private"
+        # 返回 [(codeHash, rootFolderName, shareCode, timeStamp, visibleFlag)...], is_end_page
+        if page < 1:
+            page = 1
+        limit = 100
+        offset = (page - 1) * limit
+
+        sql_where_clause = ""
+        params = []
+
+        if status_filter == "approved":
+            sql_where_clause = "WHERE visibleFlag = 1" # True
+        elif status_filter == "pending":
+            sql_where_clause = "WHERE visibleFlag IS NULL"
+        elif status_filter == "private":
+            sql_where_clause = "WHERE visibleFlag = 0" # False
+        else: # 如果状态无效，返回空
+            return [], True
+
+        # 获取总记录数
+        count_sql = f"SELECT COUNT(*) FROM PAN123DATABASE {sql_where_clause}"
+        self.database.execute(count_sql)
+        total_records = self.database.fetchone()[0]
+
+        query_sql = f"SELECT codeHash, rootFolderName, shareCode, timeStamp, visibleFlag FROM PAN123DATABASE {sql_where_clause} ORDER BY timeStamp DESC LIMIT ? OFFSET ?"
+        
+        self.database.execute(query_sql, (limit, offset))
+        
+        raw_results = self.database.fetchall()
+        processed_results = []
+        for codeHash, rootFolderName, shareCode, timeStamp, visibleFlag_db in raw_results:
+            # 确保 visibleFlag 是 Python bool 或 None
+            visible_flag_py = None
+            if visibleFlag_db == 1:
+                visible_flag_py = True
+            elif visibleFlag_db == 0:
+                visible_flag_py = False
+            
+            processed_results.append((
                 codeHash,
                 rootFolderName,
                 shareCode,
                 timeStamp,
-                bool(visibleFlag) if visibleFlag is not None else None # 不知道为什么，从数据库里读出来的不是bool? 还要额外转一下
-                ))
-        return result
+                visible_flag_py
+            ))
+            
+        is_end_page = (page * limit) >= total_records
+        
+        return processed_results, is_end_page
 
     def updateVisibleFlag(self, codeHash: str, newVisibleFlag: bool):
         try:
@@ -266,16 +345,19 @@ if __name__ == "__main__":
     db = Pan123Database(dbpath="./assets/PAN123DATABASE.db")
 
     # 从 ./export 导入文件 (兼容旧版)
-    db.importShareFiles(folder_path="./export")
+    # db.importShareFiles(folder_path="./export")
 
     logger.info("\n\n--- 测试 listData (公开资源) ---\n")
 
-    public_shares = db.listData()
+    public_shares, end_page = db.listData(page=100000)
+    
     if public_shares:
         for item in public_shares:
             logger.info(str(item))
     else:
         logger.info("无公开资源")
+    
+    print(end_page)
 
     # 测试导入新数据库
     # new_db_path = "./assets/latest.db"

@@ -326,6 +326,11 @@ body {
     color: var(--primary-dark-blue) !important; /* 文字颜色改为深蓝，确保在浅灰背景上的对比度 */
 }
 
+.tab-pane .table-responsive {
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
 /* 响应式调整 */
 @media (max-width: 768px) {
     body {

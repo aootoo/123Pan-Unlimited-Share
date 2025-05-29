@@ -15,6 +15,7 @@ from api.list_public_shares import handle_list_public_shares
 from api.get_content_tree import handle_get_content_tree
 from api.get_sharecode import handle_get_sharecode
 from api.submit_database import handle_submit_database
+from api.search_database import handle_search_database
 
 # --- 从 api.admin 包导入Admin API处理函数 ---
 from api.admin.admin_utils import admin_required
@@ -123,15 +124,19 @@ def api_list_public_shares_route():
 
 @app.route('/api/get_content_tree', methods=['POST'])
 def api_get_content_tree_route():
-    return handle_get_content_tree() 
+    return handle_get_content_tree()
 
 @app.route('/api/get_sharecode', methods=['POST'])
 def api_get_sharecode_route():
-    return handle_get_sharecode() 
+    return handle_get_sharecode()
 
 @app.route('/api/submit_database', methods=['POST'])
 def api_submit_database_route():
-    return handle_submit_database() 
+    return handle_submit_database()
+
+@app.route('/api/search_database', methods=['POST'])
+def api_search_database_route():
+    return handle_search_database()
 
 # --- Admin API 路由 ---
 @app.route(f'/api/{ADMIN_ENTRY}/get_shares', methods=['GET'])
