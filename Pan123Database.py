@@ -13,7 +13,7 @@ class Pan123Database:
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
         
-        # 如果数据库文件存在, 则检查
+        # 如果数据库文件不存在, 则下载最新数据库
         if not os.path.exists(dbpath):
             print(f"数据库文件不存在，尝试下载最新数据库到: {dbpath}")
             dbpath = self.downloadLatestDatabase(dbpath)

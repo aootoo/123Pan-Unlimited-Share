@@ -146,6 +146,8 @@ def api_admin_delete_share_route():
 if __name__ == '__main__':
 
     # 下载最新数据库
+    # 注意, 在服务端使用gunicorn时, 以下代码不会执行
+    # 请额外设置一个定时任务，每隔 x 小时运行本项目下的 updateDatabase.py
     try:
         db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
         print("正在下载最新数据库")
