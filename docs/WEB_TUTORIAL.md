@@ -174,4 +174,6 @@
 
   ![](images/WEB_TUTORIAL/ADMIN_PAGE.png)
 
+- 后台控制台页面包括 `更新数据库` 按钮, 点击后将会从本 GitHub 项目中下载最新的数据库, 合并到本地数据库中。
+
   ![](images/WEB_TUTORIAL/ADMIN_DASHBOARD.png)

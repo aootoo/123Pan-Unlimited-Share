@@ -23,6 +23,7 @@ from api.admin.get_shares import handle_admin_get_shares
 from api.admin.update_share_status import handle_admin_update_share_status
 from api.admin.update_share_name import handle_admin_update_share_name
 from api.admin.delete_share import handle_admin_delete_share
+from api.admin.update_database import handle_admin_update_database # 新增导入
 
 # --- 加载配置 ---
 ADMIN_ENTRY = loadSettings("ADMIN_ENTRY")
@@ -140,20 +141,29 @@ def api_search_database_route():
 
 # --- Admin API 路由 ---
 @app.route(f'/api/{ADMIN_ENTRY}/get_shares', methods=['GET'])
+@admin_required
 def api_admin_get_shares_route():
     return handle_admin_get_shares()
 
 @app.route(f'/api/{ADMIN_ENTRY}/update_share_status', methods=['POST'])
+@admin_required
 def api_admin_update_share_status_route():
     return handle_admin_update_share_status()
 
 @app.route(f'/api/{ADMIN_ENTRY}/update_share_name', methods=['POST'])
+@admin_required
 def api_admin_update_share_name_route():
     return handle_admin_update_share_name()
 
 @app.route(f'/api/{ADMIN_ENTRY}/delete_share', methods=['POST'])
+@admin_required
 def api_admin_delete_share_route():
     return handle_admin_delete_share()
+
+@app.route(f'/api/{ADMIN_ENTRY}/update_database', methods=['POST'])
+@admin_required
+def api_admin_update_database_route():
+    return handle_admin_update_database()
 
 # --- 应用启动入口 ---
 if __name__ == '__main__':
@@ -161,18 +171,18 @@ if __name__ == '__main__':
     # 下载最新数据库
     # 注意, 在服务端使用gunicorn时, 以下代码不会执行
     # 请额外设置一个定时任务，每隔 x 小时运行本项目下的 updateDatabase.py
-    try:
-        db = Pan123Database(dbpath=DATABASE_PATH)
-        logger.info("正在下载最新数据库...")
-        latest_db_path = db.downloadLatestDatabase()
-        logger.info("正在导入最新数据库...")
-        db.importDatabase(latest_db_path)
-        db.close()
-    except Exception as e:
-        logger.critical(f"数据库更新发生严重错误: {e}", exc_info=True)
-        logger.info("按任意键结束...")
-        input("按任意键结束")
-        exit(0)
+    # try:
+    #     db = Pan123Database(dbpath=DATABASE_PATH)
+    #     logger.info("正在下载最新数据库...")
+    #     latest_db_path = db.downloadLatestDatabase()
+    #     logger.info("正在导入最新数据库...")
+    #     db.importDatabase(latest_db_path)
+    #     db.close()
+    # except Exception as e:
+    #     logger.critical(f"数据库更新发生严重错误: {e}", exc_info=True)
+    #     logger.info("按任意键结束...")
+    #     input("按任意键结束")
+    #     exit(0)
 
     # 启动Flask应用
     flask_debug_mode = True if loadSettings("LOGGER_LEVEL") == "DEBUG" else False

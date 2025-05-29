@@ -45,7 +45,7 @@
             color: var(--text-color, #333) !important; /* 导航链接和文本颜色 */
         }
         
-        .admin-navbar .navbar-nav .btn {
+        .admin-navbar .navbar-nav .btn { /* 包含了新增的更新数据库按钮 */
             border-color: var(--primary-dark-blue);
             color: var(--primary-dark-blue);
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -53,6 +53,17 @@
         .admin-navbar .navbar-nav .btn:hover {
             background-color: var(--primary-dark-blue);
             color: white;
+        }
+        /* 更新数据库按钮的特定样式 (如果需要区别于其他按钮) */
+        .admin-navbar .navbar-nav .btn-warning { /* 比如用 warning 颜色 */
+            border-color: #ffc107;
+            color: #000; /* 确保文字在黄色背景上可读 */
+             background-color: #ffc107;
+        }
+         .admin-navbar .navbar-nav .btn-warning:hover {
+            background-color: #e0a800;
+            border-color: #d39e00;
+            color: #000;
         }
 
         .nav-pills .nav-link { 
@@ -159,6 +170,11 @@
                                 <span class="navbar-text me-3">
                                     欢迎, {{ admin_username or '管理员' }}
                                 </span>
+                            </li>
+                            <li class="nav-item me-2"> <!-- 新增 me-2 用于按钮间距 -->
+                                <button class="btn btn-sm btn-warning" id="updateDatabaseBtn">
+                                    <i class="bi bi-arrow-clockwise"></i> 更新数据库
+                                </button>
                             </li>
                             <li class="nav-item">
                                 <a class="btn btn-sm btn-outline-primary me-2" href="{{ url_for('admin_logout') }}">安全退出</a>
