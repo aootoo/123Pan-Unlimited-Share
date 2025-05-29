@@ -1,12 +1,10 @@
 import os
-import time
-import logging
-from logging.handlers import RotatingFileHandler
+from getGlobalLogger import logger
 
 from flask import Flask, render_template, request, make_response, \
                     session, redirect, url_for, flash
 
-from utils import loadSettings 
+from loadSettings import loadSettings
 from Pan123Database import Pan123Database
 
 # --- 从 api 包导入处理函数 ---
@@ -35,40 +33,6 @@ SECRET_KEY = loadSettings("SECRET_KEY")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# --- 日志配置 ---
-LOGGING_LEVEL_STR = loadSettings("LOGGING_LEVEL")
-# 假如获取到 "INFO", 这里就是获取 logging.INFO
-LOGGING_LEVEL = getattr(logging, LOGGING_LEVEL_STR.upper(), logging.INFO)
-
-# 全局 logger 实例
-logger = logging.getLogger()
-logger.setLevel(LOGGING_LEVEL)
-
-# 移除已存在的处理器，防止重复添加
-for handler in logger.handlers[:]:
-    logger.removeHandler(handler)
-
-# 文件处理器
-log_dir = loadSettings("LOG_DIR")
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
-log_filename = os.path.join(log_dir, f"{time.strftime('%Y-%m-%d-%H-%M-%S')}.log")
-file_handler = RotatingFileHandler(log_filename, maxBytes=10*1024*1024, encoding='utf-8') # 10MB per file
-file_handler.setLevel(LOGGING_LEVEL)
-
-# 控制台处理器
-console_handler = logging.StreamHandler()
-console_handler.setLevel(LOGGING_LEVEL)
-
-# 日志格式
-formatter = logging.Formatter('[%(asctime)s.%(msecs)03d][%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-file_handler.setFormatter(formatter)
-console_handler.setFormatter(formatter)
-
-# 添加处理器到 logger
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
-
 # --- Flask 应用初始化 ---
 app = Flask(
     __name__,
@@ -77,15 +41,14 @@ app = Flask(
     )
 app.secret_key = SECRET_KEY
 
-# 将自定义 logger 的 handlers 应用到 Flask 的 logger
-# 同时确保 Flask logger 的级别与配置一致
-if app.logger:
-    app.logger.handlers.clear() # 清除默认的处理器
-    for handler in logger.handlers: # 使用上面配置好的handlers
+# --- 将全局 logger 配置应用到 Flask ---
+if app.logger: # Flask app logger
+    app.logger.handlers.clear() # 清除 Flask 默认的 basicConfig 处理器
+    for handler in logger.handlers: # 将我们全局 logger 的处理器赋给它
         app.logger.addHandler(handler)
-    app.logger.setLevel(LOGGING_LEVEL) # 设置Flask logger的级别
+    app.logger.setLevel(logger.level) # 确保 Flask logger 的级别与全局 logger 一致
 
-logger.info(f"日志系统初始化完成。日志级别: {LOGGING_LEVEL_STR}, 日志文件: {log_filename}")
+logger.info(f"Flask 应用已加载全局日志配置。Flask logger level: {app.logger.level}")
 
 # --- HTML 路由 ---
 @app.route('/')
@@ -207,8 +170,9 @@ if __name__ == '__main__':
         exit(0)
 
     # 启动Flask应用
-    flask_debug_mode = True if LOGGING_LEVEL == logging.DEBUG else False
-    logger.info(f"启动 Flask Web 服务... 访问地址: http://127.0.0.1:{PORT}/ 或 https://公网地址:IP/ , Flask 调试模式: {'开启' if flask_debug_mode else '关闭'}")
+    flask_debug_mode = True if loadSettings("LOGGER_LEVEL") == "DEBUG" else False
+    logger.info(f"启动 Flask Web 服务... 访问地址: http://127.0.0.1:{PORT}/ 或 http://公网地址:IP/  或 https://公网域名/")
+    logger.info(f"Flask 调试模式: {'开启' if flask_debug_mode else '关闭'}")
     app.run(
         debug=flask_debug_mode, # 如果 settings.yaml 设置 LOGGING_LEVEL="DEBUG", 这里为 True, 否则为 False
         host='0.0.0.0',

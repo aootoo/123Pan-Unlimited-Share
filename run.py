@@ -1,11 +1,9 @@
-import os, logging, json
+import os, json
 from Pan123 import Pan123
 
+from getGlobalLogger import logger
+
 if __name__ == "__main__":
-
-    logging.basicConfig(level=logging.INFO, format='[%(asctime)s.%(msecs)03d][%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    logger = logging.getLogger(__name__)
-
     # 模式："export" (从私人网盘分享) 或 "import" (导入) 或 "link" (从分享链接导出)
     mode = "import"
 

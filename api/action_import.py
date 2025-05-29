@@ -1,12 +1,14 @@
-# api/action_import.py
 import json
 import time
-from flask import Response, stream_with_context, current_app 
+from flask import Response, stream_with_context
 from Pan123 import Pan123
 from Pan123Database import Pan123Database
-from utils import getStringHash, loadSettings
+from utils import getStringHash
+from loadSettings import loadSettings
 from api.api_utils import custom_secure_filename_part, handle_database_storage
 from queueManager import QUEUE_MANAGER
+
+from getGlobalLogger import logger
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
 
@@ -50,14 +52,14 @@ def handle_import_request(data):
         db_for_read_only = None
 
         try:
-            current_app.logger.info(f"导入任务 {task_id}: 开始排队/处理流程。")
+            logger.info(f"导入任务 {task_id}: 开始排队/处理流程。")
             # 阶段1: 排队等待
             while not processed_by_queue:
                 position, is_another_processing = QUEUE_MANAGER.get_task_position_and_is_processing_another(task_id)
-                current_app.logger.debug(f"导入任务 {task_id}: 队列检查 - 位置 {position}, 其他处理中: {is_another_processing}")
+                logger.debug(f"导入任务 {task_id}: 队列检查 - 位置 {position}, 其他处理中: {is_another_processing}")
                 if position == -2:
                     yield f"{json.dumps({'isFinish': False, 'message': '任务ID无效、已过期或已被取消，请重试。'})}\n"
-                    current_app.logger.warning(f"导入任务 {task_id} 在队列中未找到或已失效。")
+                    logger.warning(f"导入任务 {task_id} 在队列中未找到或已失效。")
                     return
                 if position == 0 and not is_another_processing:
                     if not initial_greeting_sent:
@@ -68,7 +70,7 @@ def handle_import_request(data):
                         processed_by_queue = True
                         break
                     else:
-                        current_app.logger.warning(f"导入任务 {task_id}: 在队首但 attempt_to_start_processing 失败。")
+                        logger.warning(f"导入任务 {task_id}: 在队首但 attempt_to_start_processing 失败。")
                         yield f"{json.dumps({'isFinish': None, 'message': '系统正忙或任务状态变更，仍在尝试获取执行权...'})}\n"
                 elif position >= 0:
                     people_ahead = position
@@ -76,14 +78,14 @@ def handle_import_request(data):
                     initial_greeting_sent = True 
                 else:
                     yield f"{json.dumps({'isFinish': False, 'message': f'未知的队列状态 ({position})，请重试。'})}\n"
-                    current_app.logger.error(f"导入任务 {task_id} 遇到非预期的队列状态 {position}。")
+                    logger.error(f"导入任务 {task_id} 遇到非预期的队列状态 {position}。")
                     return
                 if not processed_by_queue:
                     time.sleep(5)
 
             # 阶段2: 实际操作
             if not processed_by_queue:
-                current_app.logger.warning(f"任务 {task_id} (导入) 退出排队循环但 processed_by_queue 仍为 false，任务不执行。")
+                logger.warning(f"任务 {task_id} (导入) 退出排队循环但 processed_by_queue 仍为 false，任务不执行。")
                 return
 
             driver = Pan123()
@@ -131,7 +133,7 @@ def handle_import_request(data):
             pan123_import_op_successful = False
             final_pan123_message = "123网盘导入操作未正常完成。"
             for state in driver.importFiles(base64Data=actual_base64_data_to_import, rootFolderName=actual_root_folder_name_to_import):
-                current_app.logger.debug(f"任务 {task_id} importFiles state: {json.dumps(state, ensure_ascii=False)}")
+                logger.debug(f"任务 {task_id} importFiles state: {json.dumps(state, ensure_ascii=False)}")
                 if state.get("isFinish") is True:
                     pan123_import_op_successful = True
                     final_pan123_message = state["message"]
@@ -149,30 +151,30 @@ def handle_import_request(data):
                 return
 
             yield f"{json.dumps({'isFinish': True, 'message': final_pan123_message})}\n" 
-            current_app.logger.info(f"导入任务 {task_id} 网盘操作部分完成。")
+            logger.info(f"导入任务 {task_id} 网盘操作部分完成。")
 
         except GeneratorExit: 
-            current_app.logger.info(f"导入任务 {task_id} 客户端连接已断开 (GeneratorExit)。")
+            logger.info(f"导入任务 {task_id} 客户端连接已断开 (GeneratorExit)。")
         except Exception as e:
-            current_app.logger.error(f"API Import 主流程中发生错误 (任务 {task_id}): {e}", exc_info=True)
+            logger.error(f"API Import 主流程中发生错误 (任务 {task_id}): {e}", exc_info=True)
             try:
                 yield f"{json.dumps({'isFinish': False, 'message': f'导入过程中服务器发生意外错误: {str(e)}'})}\n"
             except Exception as yield_err: 
-                current_app.logger.warning(f"导入任务 {task_id}：向客户端发送错误信息时连接已断开: {yield_err}")
+                logger.warning(f"导入任务 {task_id}：向客户端发送错误信息时连接已断开: {yield_err}")
         finally:
-            current_app.logger.debug(f"导入任务 {task_id}: 进入 finally 块。processed_by_queue={processed_by_queue}, login_success={login_success_flag}")
+            logger.debug(f"导入任务 {task_id}: 进入 finally 块。processed_by_queue={processed_by_queue}, login_success={login_success_flag}")
             if db_for_read_only:
                 db_for_read_only.close()
             if login_success_flag and driver:
                 try:
                     driver.doLogout()
-                    current_app.logger.info(f"导入任务 {task_id}: 123网盘已注销。")
+                    logger.info(f"导入任务 {task_id}: 123网盘已注销。")
                 except Exception as final_logout_err:
-                    current_app.logger.error(f"导入任务 {task_id} 注销时发生错误: {final_logout_err}", exc_info=True)
+                    logger.error(f"导入任务 {task_id} 注销时发生错误: {final_logout_err}", exc_info=True)
             if processed_by_queue:
                 QUEUE_MANAGER.finish_processing(task_id)
             else:
                 QUEUE_MANAGER.remove_task_if_exists_and_not_processing(task_id)
-            current_app.logger.info(f"Import stream finished for task {task_id}.")
+            logger.info(f"Import stream finished for task {task_id}.")
                 
     return Response(stream_with_context(generate_import_stream_with_queue()), mimetype='application/x-ndjson')

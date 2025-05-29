@@ -1,6 +1,8 @@
-import requests, time, os, base64, json, logging
+import requests, time, os, base64, json
 from tqdm import tqdm
 from Pan123 import Pan123
+
+from getGlobalLogger import logger
 
 # 假设文件结构
 
@@ -27,10 +29,6 @@ from Pan123 import Pan123
 
 
 if __name__ == "__main__":
-
-    logging.basicConfig(level=logging.INFO, format='[%(asctime)s.%(msecs)03d][%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    logger = logging.getLogger(__name__)
-
     # 模式: "folder" 根据文件夹ID导出, "file:后缀": 根据文件逐个导出
     mode = "folder"
     # mode = "file:iso"

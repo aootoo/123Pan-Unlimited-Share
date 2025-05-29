@@ -1,8 +1,10 @@
-from flask import jsonify, request, current_app
+from flask import jsonify, request
 from Pan123Database import Pan123Database
-from utils import loadSettings
+from loadSettings import loadSettings
 from api.api_utils import custom_secure_filename_part # 从共享工具导入
 from api.admin.admin_utils import admin_required
+
+from getGlobalLogger import logger
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
 
@@ -27,7 +29,7 @@ def handle_admin_update_share_name():
         else:
             return jsonify({"success": False, "message": "名称更新失败，记录可能不存在或数据库错误。"}), 500
     except Exception as e:
-        current_app.logger.error(f"Admin API Error updating share name: {e}", exc_info=True)
+        logger.error(f"Admin API Error updating share name: {e}", exc_info=True)
         return jsonify({"success": False, "message": f"更新名称时发生服务器错误: {str(e)}"}), 500
     finally:
         if db:

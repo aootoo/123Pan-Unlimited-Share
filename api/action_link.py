@@ -1,12 +1,13 @@
-# api/action_link.py
 import json
 import time
 import re
-from flask import Response, stream_with_context, current_app 
+from flask import Response, stream_with_context
 from Pan123 import Pan123
-from utils import getStringHash, loadSettings
+from utils import getStringHash
 from api.api_utils import custom_secure_filename_part, handle_database_storage
 from queueManager import QUEUE_MANAGER
+
+from getGlobalLogger import logger
 
 def handle_link_request(data):
     parent_file_id_str = data.get('parentFileId', '0')
@@ -44,14 +45,14 @@ def handle_link_request(data):
         # driver 在此 API 中不需要登录/注销，所以不需要 login_success_flag
 
         try:
-            current_app.logger.info(f"链接导出任务 {task_id}: 开始排队/处理流程。")
+            logger.info(f"链接导出任务 {task_id}: 开始排队/处理流程。")
             # 阶段1: 排队等待
             while not processed_by_queue:
                 position, is_another_processing = QUEUE_MANAGER.get_task_position_and_is_processing_another(task_id)
-                current_app.logger.debug(f"链接导出任务 {task_id}: 队列检查 - 位置 {position}, 其他处理中: {is_another_processing}")
+                logger.debug(f"链接导出任务 {task_id}: 队列检查 - 位置 {position}, 其他处理中: {is_another_processing}")
                 if position == -2:
                     yield f"{json.dumps({'isFinish': False, 'message': '任务ID无效、已过期或已被取消，请重试。'})}\n"
-                    current_app.logger.warning(f"链接导出任务 {task_id} 在队列中未找到或已失效。")
+                    logger.warning(f"链接导出任务 {task_id} 在队列中未找到或已失效。")
                     return
                 if position == 0 and not is_another_processing:
                     if not initial_greeting_sent:
@@ -62,7 +63,7 @@ def handle_link_request(data):
                         processed_by_queue = True
                         break
                     else:
-                        current_app.logger.warning(f"链接导出任务 {task_id}: 在队首但 attempt_to_start_processing 失败。")
+                        logger.warning(f"链接导出任务 {task_id}: 在队首但 attempt_to_start_processing 失败。")
                         yield f"{json.dumps({'isFinish': None, 'message': '系统正忙或任务状态变更，仍在尝试获取执行权...'})}\n"
                 elif position >= 0:
                     people_ahead = position
@@ -70,14 +71,14 @@ def handle_link_request(data):
                     initial_greeting_sent = True
                 else:
                     yield f"{json.dumps({'isFinish': False, 'message': f'未知的队列状态 ({position})，请重试。'})}\n"
-                    current_app.logger.error(f"链接导出任务 {task_id} 遇到非预期的队列状态 {position}。")
+                    logger.error(f"链接导出任务 {task_id} 遇到非预期的队列状态 {position}。")
                     return
                 if not processed_by_queue:
                     time.sleep(5)
 
             # 阶段2: 实际操作
             if not processed_by_queue:
-                current_app.logger.warning(f"任务 {task_id} (链接导出) 退出排队循环但 processed_by_queue 仍为 false，任务不执行。")
+                logger.warning(f"任务 {task_id} (链接导出) 退出排队循环但 processed_by_queue 仍为 false，任务不执行。")
                 return
 
             driver = Pan123() 
@@ -88,7 +89,7 @@ def handle_link_request(data):
             yield f"{json.dumps({'isFinish': None, 'message': '开始从分享链接导出文件列表...'})}\n"
             
             for state in driver.exportShare(parentFileId=parent_file_id_internal, shareKey=share_key, sharePwd=share_pwd):
-                current_app.logger.debug(f"任务 {task_id} exportShare state: {json.dumps(state, ensure_ascii=False)}")
+                logger.debug(f"任务 {task_id} exportShare state: {json.dumps(state, ensure_ascii=False)}")
                 if state.get("isFinish") is True:
                     final_b64_string_data = state["message"]
                     pan123_op_successful = True
@@ -126,23 +127,23 @@ def handle_link_request(data):
                     response_payload_dict['shortShareCode'] = short_share_code_result
                 final_success_message_json_str = json.dumps(response_payload_dict)
                 yield f"{json.dumps({'isFinish': True, 'message': final_success_message_json_str})}\n"
-            current_app.logger.info(f"链接导出任务 {task_id} 网盘操作部分完成。")
+            logger.info(f"链接导出任务 {task_id} 网盘操作部分完成。")
             
         except GeneratorExit: 
-            current_app.logger.info(f"链接导出任务 {task_id} 客户端连接已断开 (GeneratorExit)。")
+            logger.info(f"链接导出任务 {task_id} 客户端连接已断开 (GeneratorExit)。")
         except Exception as e:
-            current_app.logger.error(f"API Link Export 主流程中发生错误 (任务 {task_id}): {e}", exc_info=True)
+            logger.error(f"API Link Export 主流程中发生错误 (任务 {task_id}): {e}", exc_info=True)
             try:
                 yield f"{json.dumps({'isFinish': False, 'message': f'从分享链接导出过程中服务器发生意外错误: {str(e)}'})}\n"
             except Exception as yield_err: 
-                current_app.logger.warning(f"链接导出任务 {task_id}：向客户端发送错误信息时连接已断开: {yield_err}")
+                logger.warning(f"链接导出任务 {task_id}：向客户端发送错误信息时连接已断开: {yield_err}")
         finally:
-            current_app.logger.debug(f"链接导出任务 {task_id}: 进入 finally 块。processed_by_queue={processed_by_queue}")
+            logger.debug(f"链接导出任务 {task_id}: 进入 finally 块。processed_by_queue={processed_by_queue}")
             # 此处无登录/注销操作
             if processed_by_queue:
                 QUEUE_MANAGER.finish_processing(task_id)
             else:
                 QUEUE_MANAGER.remove_task_if_exists_and_not_processing(task_id)
-            current_app.logger.info(f"Link export stream finished for task {task_id}.")
+            logger.info(f"Link export stream finished for task {task_id}.")
 
     return Response(stream_with_context(generate_link_export_stream_with_queue()), mimetype='application/x-ndjson')

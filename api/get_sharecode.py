@@ -1,6 +1,8 @@
-from flask import jsonify, request, current_app
+from flask import jsonify, request
 from Pan123Database import Pan123Database
-from utils import loadSettings
+from loadSettings import loadSettings
+
+from getGlobalLogger import logger
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
 
@@ -31,7 +33,7 @@ def handle_get_sharecode():
             return jsonify({"isFinish": False, "message": f"未找到与提供的短分享码 {code_hash[:8]}... 对应的分享内容。"}), 404
             
     except Exception as e:
-        current_app.logger.error(f"查询数据库时出错 (get_sharecode API): {e}", exc_info=True)
+        logger.error(f"查询数据库时出错 (get_sharecode API): {e}", exc_info=True)
         return jsonify({"isFinish": False, "message": f"服务器内部错误，无法获取分享码: {str(e)}"}), 500
     finally:
         if db:

@@ -1,7 +1,9 @@
-import time
-from flask import jsonify, request, current_app 
-from utils import getStringHash, loadSettings
+from flask import jsonify, request
+from utils import getStringHash
+from loadSettings import loadSettings
 from api.api_utils import custom_secure_filename_part, handle_database_storage 
+
+from getGlobalLogger import logger
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
 
@@ -42,7 +44,7 @@ def handle_submit_database():
         )
         
         for msg in log_msgs:
-            current_app.logger.debug(f"[SubmitDB API Log]: {msg}")
+            logger.debug(f"[SubmitDB API Log]: {msg}")
 
         if op_overall_success and result_hash:
             # 只要操作被认为是成功的（例如，记录已存在且短码有效，或新记录已插入）
@@ -77,5 +79,5 @@ def handle_submit_database():
             return jsonify({"isFinish": False, "message": user_error_message}), status_code
 
     except Exception as e:
-        current_app.logger.error(f"提交数据库时发生意外错误 (submit_database API): {e}", exc_info=True)
+        logger.error(f"提交数据库时发生意外错误 (submit_database API): {e}", exc_info=True)
         return jsonify({"isFinish": False, "message": f"服务器内部错误: {str(e)}"}), 500

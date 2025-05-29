@@ -1,12 +1,9 @@
 import hashlib
 import requests
-import os
-import yaml
 import json
 import base64
-import logging
 
-logger = logging.getLogger(__name__)
+from getGlobalLogger import logger
 
 # 构建AbsPath
 def makeAbsPath(fullDict, parentFileId=0):
@@ -75,11 +72,8 @@ def isAvailableRegion():
 
 # 内部函数：获取文件名对应的图标
 def _get_icon(file_name: str) -> str:
-    """
-    根据文件名获取对应的图标。（只针对文件，也就是"Type": 0）
-    """
     if not file_name or '.' not in file_name:
-        return "📄" # Default for files with no extension or empty name
+        return "📄"
  
     file_type = file_name.split('.')[-1].lower()
     if file_type in ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'svg', 'webp']:
@@ -94,6 +88,7 @@ def _get_icon(file_name: str) -> str:
         return "📄"
  
 # 生成目录树
+# 本函数由 Gemini 2.5 Pro 生成
 def generateContentTree(b64_data_str: str) -> str:
     """
     根据输入的JSON字符串数据，生成string格式的目录树。
@@ -128,9 +123,9 @@ def generateContentTree(b64_data_str: str) -> str:
             nodes[parent_id]['children'].append(item_data)
         # 否则，如果父ID不存在于当前数据集中（或parentFileId本身不存在），
         # 那么这个item被认为是当前数据集中的一个根项目
-        elif parent_id not in all_file_ids_in_data: # This handles items whose parent is outside the current list
+        elif parent_id not in all_file_ids_in_data: # 这处理了其父项不在当前列表中的项
             root_items.append(item_data)
-        # Add a fallback for items truly without a parentFileId, though the example data has it
+        # 为真正没有 parentFileId 的项添加一个回退机制，尽管示例数据中有它
         elif parent_id is None:
              root_items.append(item_data)
  
@@ -167,39 +162,39 @@ def generateContentTree(b64_data_str: str) -> str:
     for i, root_item in enumerate(root_items):
         # 对于根项目，它们没有父级的前缀结构，所以直接开始
         # 如果只有一个根项目，可以用 "└── "，多个则按常规处理
-        # For simplicity, let's treat multiple roots as siblings under an implicit main root
-        # Or, if we want to display them flatly at the top:
+        # 为简单起见，我们将多个根视为一个隐式主根下的兄弟节点
+        # 或者，如果我们想在顶部扁平地显示它们：
         icon = "📂" if root_item['Type'] == 1 else _get_icon(root_item['FileName'])
-        tree_lines.append(f"{icon} {root_item['FileName']}") # Top-level items don't use connectors
+        tree_lines.append(f"{icon} {root_item['FileName']}") # 顶级项目不使用连接符
         
-        children_prefix = "" # Initial prefix for children of root items
+        children_prefix = "" # 根项目子项的初始前缀
         
-        # Update: For a more standard tree look even for multiple roots
-        # We can define a helper to start recursion slightly differently for roots
-        # Let's stick to calling the recursive helper which adds the connector logic
+        # 更新：为了即使有多个根也能获得更标准的树状外观
+        # 我们可以定义一个辅助函数，以便对根节点以略微不同的方式开始递归
+        # 我们还是坚持调用添加连接符逻辑的递归辅助函数
         # build_tree_recursive(root_item, "", i == len(root_items) - 1)
-        # This would treat roots as children of an invisible "".
-        # The above `tree_lines.append(f"{icon} {root_item['FileName']}")` followed by recursive calls
-        # for children is more common for multiple "root" shares.
+        # 這會將根視為一個不可見的 "" 的子節點。
+        # 上面 `tree_lines.append(f"{icon} {root_item['FileName']}")` 后跟递归调用
+        # 对于子项，这对于多个“根”共享更为常见。
         #
-        # Let's refine this: if root_items are truly roots to display, they shouldn't have prefixes like ├──
-        # The recursive function should be called for their children.
+        # 让我们优化一下：如果 root_items 是真正要显示的根，它们不应该有像 ├── 这样的前缀
+        # 递归函数应该为其子项调用。
         
-        # Corrected approach for root items:
-        # They are printed directly, then their children are processed with initial prefixes.
+        # 根项的修正方法：
+        # 它们被直接打印，然后它们的子项使用初始前缀进行处理。
  
         children = root_item.get('children', [])
         for idx, child_of_root in enumerate(children):
-            # Each child of a "root" item will get a fresh prefix start
-            initial_child_prefix = "" # This is the prefix for the connector itself
-                                     # The connector will be ├── or └──
+            # “根”项的每个子项都将获得一个新的前缀起点
+            initial_child_prefix = "" # 这是连接符本身的前缀
+                                     # 连接符将是 ├── 或 └──
             build_tree_recursive(child_of_root, initial_child_prefix, idx == len(children) - 1)
  
-    # Let's refine the root item handling for proper tree structure from the very top.
-    # The previous logic for root items display was a bit off.
-    # We should iterate root_items and call build_tree_recursive for them directly.
+    # 让我们从最顶层优化根项处理，以获得正确的树状结构。
+    # 之前根项显示的逻辑有点偏差。
+    # 我们应该迭代 root_items 并直接为它们调用 build_tree_recursive。
     
-    tree_lines = [] # Resetting for the refined root handling
+    tree_lines = [] # 为优化的根处理重置
  
     def generate_lines_for_list(item_list, base_prefix):
         num_items = len(item_list)
@@ -210,60 +205,23 @@ def generateContentTree(b64_data_str: str) -> str:
             tree_lines.append(f"{base_prefix}{connector}{icon} {item['FileName']}")
             
             children_prefix = base_prefix + ("    " if is_last else "│   ")
-            # Recursively process children if they exist and are sorted
+            # 如果子项存在并且已排序，则递归处理它们
             if item['children']:
                 generate_lines_for_list(item['children'], children_prefix)
  
-    # Start generation from the sorted root_items
+    # 从已排序的 root_items 开始生成
     num_root_items = len(root_items)
     for i, root_item_data in enumerate(root_items):
         is_last_root = (i == num_root_items - 1)
         icon = "📂" if root_item_data['Type'] == 1 else _get_icon(root_item_data['FileName'])
         
-        # For root items, we don't typically use the '├──' or '└──' unless they are under a single "share name".
-        # If we want them to appear as the topmost entries:
+        # 对于根项，除非它们位于单个“共享名称”下，否则我们通常不使用 '├──' 或 '└──'。
+        # 如果我们希望它们显示为最顶部的条目：
         tree_lines.append(f"{icon} {root_item_data['FileName']}")
         
-        # Then list their children with appropriate prefixes
+        # 然后使用适当的前缀列出它们的子项
         if root_item_data['children']:
-            generate_lines_for_list(root_item_data['children'], "") # Start children with no base_prefix, connector add prefix
-                                                                    # This will result in ├── or └── for direct children
-                                                                    # of the root item.
+            generate_lines_for_list(root_item_data['children'], "") # 子项以无 base_prefix 开始，连接符添加前缀
+                                                                    # 这将导致根项的直接子项使用 ├── 或 └──。
     
     return {"isFinish": True, "message": tree_lines}
-
-def loadSettings(keyword):
-    if os.path.exists("./settings.yaml"):
-        with open("./settings.yaml", "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f.read())
-        return data.get(keyword)
-    else:
-        logger.critical("没有发现 settings.yaml 文件, 已重新生成, 请填写参数后再运行!")
-        with open("./settings.yaml", "w", encoding="utf-8") as f:
-            f.write("""
-# 数据库的地址 (一般保持默认即可)
-DATABASE_PATH: "./assets/PAN123DATABASE.db"
-
-# 网页运行的端口
-# 网页链接 http://{IP}:{PORT}/
-PORT: 33333
-
-# Telegram 爬虫参数, 如果不知道就不要动
-CHANNEL_NAME: "" # 大家应该都知道是 telegram 的哪个群, 自己填入 (@xxxx的xxxx部分), GitHub不明说了
-MESSAGE_AFTER_ID: 8050 # 建议从第 8050 条消息开始爬, 因为之前的内容全都失效了
-
-# 管理员入口, 用于登录后台
-# 管理页面: http://{IP}:{PORT}/{ADMIN_ENTRY}/login
-ADMIN_ENTRY: "admin_abcdefg"
-ADMIN_USERNAME: "admin"
-ADMIN_PASSWORD: "123456"
-
-# 密钥, 用于加密 cookies, 如果你要部署本网站, 并且开放给其他用户使用, 请务必修改
-SECRET_KEY: "114514"
-
-# 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
-LOG_DIR: "./logs"
-LOGGING_LEVEL: "INFO"
-""")
-        logger.info("按任意键结束...") # input() 仍然保留，因为需要用户交互
-        input("按任意键结束")

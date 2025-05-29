@@ -1,13 +1,11 @@
 import sqlite3
 import os
 import requests
-import logging
-import json
 
 from tqdm import tqdm
 from utils import getStringHash
 
-logger = logging.getLogger(__name__)
+from getGlobalLogger import logger
 
 class Pan123Database:
     def __init__(self, dbpath):
@@ -264,11 +262,6 @@ class Pan123Database:
 
 
 if __name__ == "__main__":
-
-    logging.basicConfig(level=logging.INFO, format='[%(asctime)s.%(msecs)03d][%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-
-    for handler in logging.root.handlers[:]:
-        print(f"Handler: {handler}")
 
     db = Pan123Database(dbpath="./assets/test.db")
 

@@ -10,3 +10,4 @@ PRIVATE_KEY.md
 /web.dist
 /web.build
 web.exe
+/logs

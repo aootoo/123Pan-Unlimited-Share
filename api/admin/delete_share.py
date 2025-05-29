@@ -1,7 +1,9 @@
-from flask import jsonify, request, current_app
+from flask import jsonify, request
 from Pan123Database import Pan123Database
-from utils import loadSettings
+from loadSettings import loadSettings
 from api.admin.admin_utils import admin_required
+
+from getGlobalLogger import logger
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
 
@@ -22,7 +24,7 @@ def handle_admin_delete_share():
             # deleteData 返回 False 如果记录不存在
             return jsonify({"success": False, "message": "记录删除失败，可能该记录不存在。"}), 404 # Not Found
     except Exception as e:
-        current_app.logger.error(f"Admin API Error deleting share: {e}", exc_info=True)
+        logger.error(f"Admin API Error deleting share: {e}", exc_info=True)
         return jsonify({"success": False, "message": f"删除记录时发生服务器错误: {str(e)}"}), 500
     finally:
         if db:

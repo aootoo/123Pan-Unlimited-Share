@@ -1,3 +1,15 @@
+import os
+import yaml
+
+def loadSettings(keyword):
+    if os.path.exists("./settings.yaml"):
+        with open("./settings.yaml", "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f.read())
+        return data.get(keyword)
+    else:
+        print("没有发现 settings.yaml 文件, 已重新生成, 请填写参数后再运行!")
+        with open("./settings.yaml", "w", encoding="utf-8") as f:
+            f.write("""
 # 数据库的地址 (一般保持默认即可)
 DATABASE_PATH: "./assets/PAN123DATABASE.db"
 
@@ -21,3 +33,6 @@ SECRET_KEY: "114514"
 # 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
 LOG_DIR: "./logs"
 LOGGING_LEVEL: "INFO"
+""")
+        input("按任意键结束")
+        exit(0)

@@ -1,6 +1,6 @@
 from functools import wraps
 from flask import session, flash, redirect, url_for
-from utils import loadSettings
+from loadSettings import loadSettings
 
 ADMIN_ENTRY = loadSettings("ADMIN_ENTRY") 
 

@@ -2,9 +2,8 @@ from collections import deque
 import threading
 import time
 import uuid
-import logging
 
-logger = logging.getLogger(__name__) 
+from getGlobalLogger import logger
 
 # 简单的任务超时设置 (秒)
 TASK_QUEUE_TIMEOUT_SECONDS = 10 * 60  # 10分钟超时

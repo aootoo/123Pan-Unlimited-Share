@@ -1,11 +1,10 @@
 import re
 import unicodedata
 import time
-import logging
-logger = logging.getLogger(__name__)
+from getGlobalLogger import logger
 
 from Pan123Database import Pan123Database
-from utils import loadSettings
+from loadSettings import loadSettings
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
 

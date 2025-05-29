@@ -1,12 +1,12 @@
-# api/action_export.py
 import json
 import time
-from flask import Response, stream_with_context, current_app 
+from flask import Response, stream_with_context
 from Pan123 import Pan123
-from utils import getStringHash, loadSettings
+from utils import getStringHash
 from api.api_utils import custom_secure_filename_part, handle_database_storage
 from queueManager import QUEUE_MANAGER
 
+from getGlobalLogger import logger
 
 def handle_export_request(data):
     username = data.get('username')
@@ -27,7 +27,7 @@ def handle_export_request(data):
 
     task_description = f"导出_{username[:5]}..._{user_specified_base_name_raw[:10] if user_specified_base_name_raw else '默认名'}"
     task_id = QUEUE_MANAGER.add_task(task_name=task_description)
-    # current_app.logger.info(f"导出任务 {task_id} ({task_description}) 已添加到队列。") # queue_manager内部已有日志
+    # logger.info(f"导出任务 {task_id} ({task_description}) 已添加到队列。") # queue_manager内部已有日志
 
     def generate_export_stream_with_queue():
         initial_greeting_sent = False
@@ -36,16 +36,16 @@ def handle_export_request(data):
         driver = None # 同样，为了注销
 
         try:
-            current_app.logger.info(f"导出任务 {task_id}: 开始排队/处理流程。")
+            logger.info(f"导出任务 {task_id}: 开始排队/处理流程。")
             # 阶段1: 排队等待
             while not processed_by_queue:
                 position, is_another_processing = QUEUE_MANAGER.get_task_position_and_is_processing_another(task_id)
                 
-                current_app.logger.debug(f"导出任务 {task_id}: 队列检查 - 位置 {position}, 其他处理中: {is_another_processing}")
+                logger.debug(f"导出任务 {task_id}: 队列检查 - 位置 {position}, 其他处理中: {is_another_processing}")
 
                 if position == -2: 
                     yield f"{json.dumps({'isFinish': False, 'message': '任务ID无效、已过期或已被取消，请重试。'})}\n"
-                    current_app.logger.warning(f"导出任务 {task_id} 在队列中未找到或已失效。")
+                    logger.warning(f"导出任务 {task_id} 在队列中未找到或已失效。")
                     return 
 
                 if position == 0 and not is_another_processing:
@@ -56,10 +56,10 @@ def handle_export_request(data):
                     if QUEUE_MANAGER.attempt_to_start_processing(task_id):
                         yield f"{json.dumps({'isFinish': None, 'message': '恭喜义父, 轮到您嘞! 操作即将开始...'})}\n"
                         processed_by_queue = True 
-                        # current_app.logger.info(f"导出任务 {task_id} 开始执行实际操作。") # queue_manager内部已有日志
+                        # logger.info(f"导出任务 {task_id} 开始执行实际操作。") # queue_manager内部已有日志
                         break 
                     else:
-                        current_app.logger.warning(f"导出任务 {task_id}: 在队首但 attempt_to_start_processing 失败。可能是并发或任务已不在队列。")
+                        logger.warning(f"导出任务 {task_id}: 在队首但 attempt_to_start_processing 失败。可能是并发或任务已不在队列。")
                         yield f"{json.dumps({'isFinish': None, 'message': '系统正忙或任务状态变更，仍在尝试获取执行权...'})}\n"
                 
                 elif position >= 0 :
@@ -69,7 +69,7 @@ def handle_export_request(data):
                 
                 else: 
                     yield f"{json.dumps({'isFinish': False, 'message': f'未知的队列状态 ({position})，请重试。'})}\n"
-                    current_app.logger.error(f"导出任务 {task_id} 遇到非预期的队列状态 {position}。")
+                    logger.error(f"导出任务 {task_id} 遇到非预期的队列状态 {position}。")
                     return
 
                 if not processed_by_queue:
@@ -77,7 +77,7 @@ def handle_export_request(data):
 
             # 阶段2: 实际的123网盘操作 
             if not processed_by_queue:
-                current_app.logger.warning(f"任务 {task_id} (导出) 退出排队循环但 processed_by_queue 仍为 false，任务不执行。")
+                logger.warning(f"任务 {task_id} (导出) 退出排队循环但 processed_by_queue 仍为 false，任务不执行。")
                 return
 
             try:
@@ -103,7 +103,7 @@ def handle_export_request(data):
             yield f"{json.dumps({'isFinish': None, 'message': '登录成功，开始导出文件列表...'})}\n"
             
             for state in driver.exportFiles(parentFileId=parent_file_id_internal):
-                current_app.logger.debug(f"任务 {task_id} exportFiles state: {json.dumps(state, ensure_ascii=False)}")
+                logger.debug(f"任务 {task_id} exportFiles state: {json.dumps(state, ensure_ascii=False)}")
                 if state.get("isFinish") is True:
                     final_b64_string_data = state["message"]
                     pan123_op_successful = True
@@ -143,36 +143,36 @@ def handle_export_request(data):
                 final_success_message_json_str = json.dumps(response_payload_dict)
                 yield f"{json.dumps({'isFinish': True, 'message': final_success_message_json_str})}\n"
             
-            current_app.logger.info(f"导出任务 {task_id} 网盘操作部分完成。")
+            logger.info(f"导出任务 {task_id} 网盘操作部分完成。")
 
         except GeneratorExit: 
-            current_app.logger.info(f"导出任务 {task_id} 客户端连接已断开 (GeneratorExit)。")
+            logger.info(f"导出任务 {task_id} 客户端连接已断开 (GeneratorExit)。")
         except Exception as e:
-            current_app.logger.error(f"API Export 主流程中发生错误 (任务 {task_id}): {e}", exc_info=True)
+            logger.error(f"API Export 主流程中发生错误 (任务 {task_id}): {e}", exc_info=True)
             try:
                 yield f"{json.dumps({'isFinish': False, 'message': f'导出过程中服务器发生意外错误: {str(e)}'})}\n"
             except Exception as yield_err: 
-                current_app.logger.warning(f"导出任务 {task_id}：向客户端发送错误信息时连接已断开: {yield_err}")
+                logger.warning(f"导出任务 {task_id}：向客户端发送错误信息时连接已断开: {yield_err}")
         finally:
             # finally 块总是会执行，无论 try 块如何退出（正常完成，return，break，异常）
-            current_app.logger.debug(f"导出任务 {task_id}: 进入 finally 块。processed_by_queue={processed_by_queue}, login_success={login_success_flag}")
+            logger.debug(f"导出任务 {task_id}: 进入 finally 块。processed_by_queue={processed_by_queue}, login_success={login_success_flag}")
             if login_success_flag and driver: 
                 try:
                     driver.doLogout()
-                    current_app.logger.info(f"导出任务 {task_id}: 123网盘已注销。")
+                    logger.info(f"导出任务 {task_id}: 123网盘已注销。")
                 except Exception as final_logout_err:
-                    current_app.logger.error(f"导出任务 {task_id} 注销时发生错误: {final_logout_err}", exc_info=True)
+                    logger.error(f"导出任务 {task_id} 注销时发生错误: {final_logout_err}", exc_info=True)
             
             if processed_by_queue:
                  QUEUE_MANAGER.finish_processing(task_id)
-                 # current_app.logger.info(f"导出任务 {task_id} 已完成，并从队列管理器移除。") # queue_manager内部有日志
+                 # logger.info(f"导出任务 {task_id} 已完成，并从队列管理器移除。") # queue_manager内部有日志
             else:
                  # 如果任务在排队时客户端断开，processed_by_queue 会是 False
                  removed = QUEUE_MANAGER.remove_task_if_exists_and_not_processing(task_id)
                  # if removed: # queue_manager内部有日志
-                 #     current_app.logger.info(f"导出任务 {task_id} 在排队时客户端断开或超时，已从等待队列中移除。")
+                 #     logger.info(f"导出任务 {task_id} 在排队时客户端断开或超时，已从等待队列中移除。")
                  # else:
-                 #     current_app.logger.warning(f"导出任务 {task_id} 未开始处理，也未能从等待队列中移除（可能已被处理、超时或不存在）。")
-            current_app.logger.info(f"Export stream finished for task {task_id}.")
+                 #     logger.warning(f"导出任务 {task_id} 未开始处理，也未能从等待队列中移除（可能已被处理、超时或不存在）。")
+            logger.info(f"Export stream finished for task {task_id}.")
 
     return Response(stream_with_context(generate_export_stream_with_queue()), mimetype='application/x-ndjson')

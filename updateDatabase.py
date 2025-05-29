@@ -1,11 +1,10 @@
 from Pan123Database import Pan123Database
-from utils import loadSettings
+from loadSettings import loadSettings
 
-DEBUG = loadSettings("DEBUG")
 DATABASE_PATH = loadSettings("DATABASE_PATH")
 
 try:
-    db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
+    db = Pan123Database(dbpath=DATABASE_PATH)
     print("正在下载最新数据库")
     latest_db_path = db.downloadLatestDatabase()
     print("正在导入最新数据库")

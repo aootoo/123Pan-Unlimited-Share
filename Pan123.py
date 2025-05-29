@@ -1,4 +1,3 @@
-import logging
 import time
 import requests
 from tqdm import tqdm
@@ -8,7 +7,7 @@ import random
 
 from utils import anonymizeId, makeAbsPath
 
-logger = logging.getLogger(__name__)
+from getGlobalLogger import logger
 
 class Pan123:
     # Refer: https://github.com/AlistGo/alist/blob/main/drivers/123/util.go

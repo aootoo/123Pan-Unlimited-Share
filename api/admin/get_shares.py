@@ -1,7 +1,9 @@
-from flask import jsonify, current_app
+from flask import jsonify
 from Pan123Database import Pan123Database
-from utils import loadSettings
+from loadSettings import loadSettings
 from api.admin.admin_utils import admin_required 
+
+from getGlobalLogger import logger
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
 
@@ -49,7 +51,7 @@ def handle_admin_get_shares():
         }), 200
 
     except Exception as e:
-        current_app.logger.error(f"Admin API Error getting shares: {e}", exc_info=True)
+        logger.error(f"Admin API Error getting shares: {e}", exc_info=True)
         return jsonify({"success": False, "message": f"获取分享列表失败: {str(e)}"}), 500
     finally:
         if db:

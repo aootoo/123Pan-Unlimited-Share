@@ -1,6 +1,9 @@
-from flask import jsonify, request, current_app
+from flask import jsonify, request
 from Pan123Database import Pan123Database
-from utils import generateContentTree, loadSettings
+from utils import generateContentTree
+from loadSettings import loadSettings
+
+from getGlobalLogger import logger
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
 
@@ -38,7 +41,7 @@ def handle_get_content_tree():
         return jsonify(result_dict) # 直接返回generateContentTree的结果
 
     except Exception as e:
-        current_app.logger.error(f"调用 generateContentTree 或数据库查询时发生错误 (get_content_tree API): {e}", exc_info=True)
+        logger.error(f"调用 generateContentTree 或数据库查询时发生错误 (get_content_tree API): {e}", exc_info=True)
         return jsonify({"isFinish": False, "message": f"生成目录树时发生服务器内部错误: {str(e)}"}), 500
     finally:
         if db: # 确保关闭数据库连接
