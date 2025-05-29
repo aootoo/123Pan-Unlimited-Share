@@ -8,7 +8,6 @@ from utils import getStringHash, loadSettings
 from api.api_utils import custom_secure_filename_part, handle_database_storage
 from queueManager import QUEUE_MANAGER
 
-DEBUG = loadSettings("DEBUG")
 DATABASE_PATH = loadSettings("DATABASE_PATH")
 
 def handle_import_request(data):
@@ -87,7 +86,7 @@ def handle_import_request(data):
                 current_app.logger.warning(f"任务 {task_id} (导入) 退出排队循环但 processed_by_queue 仍为 false，任务不执行。")
                 return
 
-            driver = Pan123(debug=DEBUG)
+            driver = Pan123()
             actual_base64_data_to_import = None
             actual_root_folder_name_to_import = None
 
@@ -100,7 +99,7 @@ def handle_import_request(data):
 
             if is_short_code_import: 
                 yield f"{json.dumps({'isFinish': None, 'message': f'正在通过短分享码 {code_hash_param[:8]}... 从数据库获取数据...'})}\n"
-                db_for_read_only = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
+                db_for_read_only = Pan123Database(dbpath=DATABASE_PATH)
                 share_data_list = db_for_read_only.getDataByHash(code_hash_param) 
                 if not share_data_list or len(share_data_list) == 0:
                     yield f"{json.dumps({'isFinish': False, 'message': '短分享码无效或未在数据库中找到。'})}\n"
@@ -132,7 +131,7 @@ def handle_import_request(data):
             pan123_import_op_successful = False
             final_pan123_message = "123网盘导入操作未正常完成。"
             for state in driver.importFiles(base64Data=actual_base64_data_to_import, rootFolderName=actual_root_folder_name_to_import):
-                current_app.logger.debug(f"任务 {task_id} importFiles state: {state.get('message')[:100] if isinstance(state.get('message'), str) else state.get('message')}")
+                current_app.logger.debug(f"任务 {task_id} importFiles state: {json.dumps(state, ensure_ascii=False)}")
                 if state.get("isFinish") is True:
                     pan123_import_op_successful = True
                     final_pan123_message = state["message"]

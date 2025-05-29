@@ -3,7 +3,6 @@ from Pan123Database import Pan123Database
 from utils import loadSettings
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
-DEBUG = loadSettings("DEBUG") 
 
 def handle_get_sharecode():
     data = request.get_json()
@@ -16,7 +15,7 @@ def handle_get_sharecode():
 
     db = None
     try:
-        db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
+        db = Pan123Database(dbpath=DATABASE_PATH)
         # Pan123Database.getDataByHash 返回一个列表，每个元素是 (rootFolderName, shareCode, visibleFlag)
         # 或者在没有找到时返回 None (在我们的实现中，是返回空列表，需要根据具体实现调整)
         # 假设 Pan123Database.getDataByHash(code_hash) 返回 [(rfn, sc, vf)] 或 []

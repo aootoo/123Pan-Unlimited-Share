@@ -4,23 +4,24 @@ import os
 import yaml
 import json
 import base64
+import logging
+
+logger = logging.getLogger(__name__)
 
 # 构建AbsPath
-def makeAbsPath(fullDict, parentFileId=0, debug=False):
+def makeAbsPath(fullDict, parentFileId=0):
     _parentMapping = {} # {子文件ID: 父文件夹ID}
     # 遍历所有文件夹和文件列表，记录每个文件的父文件夹ID
     for key, value in fullDict.items():
         for item in value:
             _parentMapping[item.get("FileId")] = int(key) # item.get("ParentFileId")
-    if debug:
-        print(f"_parentMapping: {_parentMapping}")
+    logger.debug(f"_parentMapping: {json.dumps(_parentMapping, ensure_ascii=False)}")
     # 遍历所有文件夹和文件列表，添加AbsPath
     for key, value in fullDict.items():
         for item in value:
             _absPath = str(item.get("FileId"))
-            if debug:
-                print(f"_absPath: {_absPath}")
-                print(f"int(_absPath.split('/')[0]): {int(_absPath.split('/')[0])}")
+            logger.debug(f"_absPath: {_absPath}")
+            logger.debug(f"int(_absPath.split('/')[0]): {int(_absPath.split('/')[0])}")
             while _absPath.split("/")[0] != str(parentFileId):
                 _absPath = f"{_parentMapping.get(int(_absPath.split('/')[0]))}/{_absPath}"
             item.update({"AbsPath": _absPath})
@@ -64,12 +65,12 @@ def getStringHash(text):
 # False: 不支持 (中国大陆IP)
 def isAvailableRegion():
     check_ip_url = "https://ipv4.ping0.cc/geo"
-    response = requests.get(check_ip_url).text
+    response = requests.get(check_ip_url).text.replace("\n", "")
     if "中国" in response and not any(keyword in response for keyword in ["香港", "澳门", "台湾"]):
-            print(f"不支持当前IP地址使用：\n\n{response}")
+            logger.warning(f"不支持当前IP地址使用: {response}")
             return False
     else:
-        print(f"当前IP地址支持使用：\n\n{response}")
+        logger.info(f"当前IP地址支持使用: {response}")
         return True
 
 # 内部函数：获取文件名对应的图标
@@ -237,9 +238,10 @@ def loadSettings(keyword):
             data = yaml.safe_load(f.read())
         return data.get(keyword)
     else:
-        print("没有发现 settings.yaml 文件, 已重新生成, 请填写参数后再运行!")
+        logger.critical("没有发现 settings.yaml 文件, 已重新生成, 请填写参数后再运行!")
         with open("./settings.yaml", "w", encoding="utf-8") as f:
-            f.write("""# 数据库的地址 (一般保持默认即可)
+            f.write("""
+# 数据库的地址 (一般保持默认即可)
 DATABASE_PATH: "./assets/PAN123DATABASE.db"
 
 # 网页运行的端口
@@ -259,7 +261,9 @@ ADMIN_PASSWORD: "123456"
 # 密钥, 用于加密 cookies, 如果你要部署本网站, 并且开放给其他用户使用, 请务必修改
 SECRET_KEY: "114514"
 
-# 是否开启调试模式 (保持不动即可)
-DEBUG: false""")
+# 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
+LOG_DIR: "./logs"
+LOGGING_LEVEL: "INFO"
+""")
+        logger.info("按任意键结束...") # input() 仍然保留，因为需要用户交互
         input("按任意键结束")
-        exit(0)

@@ -1,4 +1,4 @@
-import requests, time, os, base64, json
+import requests, time, os, base64, json, logging
 from tqdm import tqdm
 from Pan123 import Pan123
 
@@ -28,6 +28,9 @@ from Pan123 import Pan123
 
 if __name__ == "__main__":
 
+    logging.basicConfig(level=logging.INFO, format='[%(asctime)s.%(msecs)03d][%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    logger = logging.getLogger(__name__)
+
     # 模式: "folder" 根据文件夹ID导出, "file:后缀": 根据文件逐个导出
     mode = "folder"
     # mode = "file:iso"
@@ -47,7 +50,7 @@ if __name__ == "__main__":
     if not os.path.exists(saveFolderPath):
         os.makedirs(saveFolderPath)
     # 初始化
-    driver = Pan123(debug=False)
+    driver = Pan123()
     # 获取 parentFileId 下的所有文件夹名和ID
     page = 0
     body = {
@@ -66,7 +69,7 @@ if __name__ == "__main__":
         # 更新Page参数
         page += 1
         body.update({"Page": f"{page}"})
-        print(f"获取文件列表中：正在获取第{page}页")
+        logger.info(f"获取文件列表中：正在获取第{page}页")
         # 发送请求
         response_data = requests.get(
             url = driver.getActionUrl("ShareList"),
@@ -79,15 +82,14 @@ if __name__ == "__main__":
             ALL_ITEMS.extend(response_data.get("InfoList"))
             # 如果没有下一页，就退出循环
             if (response_data.get("Next") == "-1") or (len(response_data.get("InfoList")) == 0):
-                print("已是最后一页")
+                logger.info("已是最后一页")
                 break
             # 否则进入下一页 (等待 self.sleepTime 秒, 防止被封)
             else:
-                print(f"等待 0.1 秒后进入下一页")
+                logger.debug("等待 0.1 秒后进入下一页")
                 time.sleep(0.1)
         else:
-            print("获取文件列表失败")
-            print(response_data)
+            logger.error(f"获取文件列表失败: {json.dumps(response_data, ensure_ascii=False)}")
             break
 
     if mode == "folder":
@@ -95,14 +97,16 @@ if __name__ == "__main__":
         # 递归获取子文件夹下的文件
         for sub_file in ALL_ITEMS:
             if sub_file.get("Type") == 1:
-                print(f"文件夹 {sub_file.get('FileName')} (ID: {sub_file.get('FileId')})")
+                logger.info(f"发现文件夹: {sub_file.get('FileName')} (ID: {sub_file.get('FileId')})")
                 PROCESSED_DATA[sub_file.get("FileId")] = sub_file.get("FileName")
+        logger.info("按回车键继续导出...")
         input()
         for FileId, FileName in tqdm(PROCESSED_DATA.items()):
             driver.listShareVisited = {}
             # print(f"导出 {FileName} (ID: {FileId}) 到 {FileName}.123share")
             # tqdm 在进度条下面打印进度
             tqdm.write(f"导出 {FileName} (ID: {FileId}) 到 {fileNamePrefix}{FileName}.123share")
+            logger.info(f"导出 {FileName} (ID: {FileId}) 到 {fileNamePrefix}{FileName}.123share")
             for currentState in driver.exportShare(parentFileId=FileId,
                                                 shareKey=shareKey,
                                                 sharePwd=sharePwd):
@@ -112,8 +116,10 @@ if __name__ == "__main__":
                         f.write(currentState["message"])
                         # f.write(json.dumps(data, indent=4, ensure_ascii=False))
                     tqdm.write("导出成功")
+                    logger.info(f"文件 {fileNamePrefix}{FileName}.123share 导出成功。")
                 else:
                     tqdm.write(currentState["message"])
+                    logger.info(f"导出进度 ({FileName}): {currentState['message']}")
     else:
         suffix = mode.split(":")[1]
         for sub_file in ALL_ITEMS:
@@ -131,6 +137,7 @@ if __name__ == "__main__":
                 if len(sub_file["FileName"]) > 200:
                     sub_file["FileName"] = sub_file["FileName"][:190] + "..."
                     tqdm.write(f"文件名过长, 已截取为: {sub_file['FileName']}")
+                    logger.warning(f"文件名过长, 已截取为: {sub_file['FileName']}")
                 with open(os.path.join(saveFolderPath, f"{fileNamePrefix}{sub_file.get('FileName')}.123share"), "w", encoding="utf-8") as f:
                     f.write(data)
                     # f.write(json.dumps(data, indent=4, ensure_ascii=False))

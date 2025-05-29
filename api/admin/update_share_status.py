@@ -4,7 +4,6 @@ from utils import loadSettings
 from api.admin.admin_utils import admin_required
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
-DEBUG = loadSettings("DEBUG")
 
 @admin_required
 def handle_admin_update_share_status():
@@ -28,7 +27,7 @@ def handle_admin_update_share_status():
 
     db = None
     try:
-        db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
+        db = Pan123Database(dbpath=DATABASE_PATH)
         if db.updateVisibleFlag(code_hash, new_visible_flag_for_db):
             return jsonify({"success": True, "message": "分享状态更新成功。"}), 200
         else:

@@ -3,12 +3,11 @@ from Pan123Database import Pan123Database
 from utils import loadSettings
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
-DEBUG = loadSettings("DEBUG")
 
 def handle_list_public_shares():
     db = None
     try:
-        db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
+        db = Pan123Database(dbpath=DATABASE_PATH)
         # listData(visibleFlag=True) 默认按 timeStamp DESC 排序
         public_shares_raw = db.listData(visibleFlag=True) 
         

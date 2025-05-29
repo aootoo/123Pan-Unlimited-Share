@@ -4,13 +4,12 @@ from utils import loadSettings
 from api.admin.admin_utils import admin_required 
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
-DEBUG = loadSettings("DEBUG") # 通常admin接口也受DEBUG影响，例如日志级别
 
 @admin_required # 应用装饰器保护此API
 def handle_admin_get_shares():
     db = None
     try:
-        db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
+        db = Pan123Database(dbpath=DATABASE_PATH)
         # listAllDataForAdmin() 返回 (codeHash, rootFolderName, shareCode, timeStamp, visibleFlag)
         all_shares_raw = db.listAllDataForAdmin()
         

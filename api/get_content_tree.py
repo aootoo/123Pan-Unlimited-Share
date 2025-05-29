@@ -3,7 +3,6 @@ from Pan123Database import Pan123Database
 from utils import generateContentTree, loadSettings
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
-DEBUG = loadSettings("DEBUG")
 
 def handle_get_content_tree():
     data = request.get_json()
@@ -18,7 +17,7 @@ def handle_get_content_tree():
 
     try:
         if code_hash: # 如果提供了短码，优先从数据库查找
-            db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
+            db = Pan123Database(dbpath=DATABASE_PATH)
             share_data_list = db.getDataByHash(code_hash) 
             if share_data_list and len(share_data_list) > 0:
                 target_share_code_for_tree = share_data_list[0][1] # (rootFolderName, shareCode, visibleFlag) -> shareCode

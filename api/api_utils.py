@@ -1,12 +1,13 @@
 import re
 import unicodedata
 import time
+import logging
+logger = logging.getLogger(__name__)
 
-from Pan123Database import Pan123Database # 需要访问数据库
-from utils import getStringHash, loadSettings # 需要数据库路径和哈希函数
+from Pan123Database import Pan123Database
+from utils import loadSettings
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
-DEBUG = loadSettings("DEBUG")
 
 def custom_secure_filename_part(name_str):
     """
@@ -49,7 +50,7 @@ def handle_database_storage(code_hash, root_folder_name_cleaned, visible_flag, s
     message_log = []
 
     try:
-        db_instance = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
+        db_instance = Pan123Database(dbpath=DATABASE_PATH)
         existing_entry = db_instance.queryHash(code_hash)
 
         # 逻辑
@@ -134,10 +135,7 @@ def handle_database_storage(code_hash, root_folder_name_cleaned, visible_flag, s
     except Exception as e:
         operation_successful = False
         message_log.append(f"数据库操作时发生意外错误: {str(e)}")
-        if DEBUG:
-            print(f"详细错误 (api_utils.handle_database_storage): {e}")
-            import traceback
-            traceback.print_exc()
+        logger.error(f"数据库操作时发生意外错误: {str(e)}", exc_info=True)
     finally:
         if db_instance:
             db_instance.close()

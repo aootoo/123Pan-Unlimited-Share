@@ -4,18 +4,7 @@ import time
 import uuid
 import logging
 
-# 获取 Flask 应用的 logger，如果不在 Flask 上下文，则使用标准 logger
-try:
-    from flask import current_app
-    logger = current_app.logger
-except RuntimeError: # 不在应用上下文中
-    logger = logging.getLogger(__name__)
-    if not logger.hasHandlers(): # 避免重复添加 handler
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
+logger = logging.getLogger(__name__) 
 
 # 简单的任务超时设置 (秒)
 TASK_QUEUE_TIMEOUT_SECONDS = 10 * 60  # 10分钟超时

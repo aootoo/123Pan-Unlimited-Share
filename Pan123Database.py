@@ -1,13 +1,16 @@
 import sqlite3
 import os
 import requests
+import logging
+import json
 
 from tqdm import tqdm
 from utils import getStringHash
 
+logger = logging.getLogger(__name__)
+
 class Pan123Database:
-    def __init__(self, dbpath, debug=False):
-        self.debug = debug
+    def __init__(self, dbpath):
         # 确保数据库目录存在
         db_dir = os.path.dirname(dbpath)
         if db_dir and not os.path.exists(db_dir):
@@ -15,7 +18,7 @@ class Pan123Database:
         
         # 如果数据库文件不存在, 则下载最新数据库
         if not os.path.exists(dbpath):
-            print(f"数据库文件不存在，尝试下载最新数据库到: {dbpath}")
+            logger.info(f"数据库文件 {dbpath} 不存在，尝试下载最新数据库。")
             dbpath = self.downloadLatestDatabase(dbpath)
         
         # 验证数据库文件
@@ -44,10 +47,10 @@ class Pan123Database:
         # 检查 ./share 文件夹内是否存在 *.123share 文件, 如果存在, 则挨个读取, 并将其加入数据库, 随后删除该文件
         # 这个函数是为了兼容旧版本
         if not os.path.exists(folder_path): # 如果 share 不存在了，就直接返回
-            print(f"兼容模式：未找到 {folder_path} 文件夹，跳过旧文件导入。")
+            logger.info(f"兼容模式：未找到 {folder_path} 文件夹，跳过旧文件导入。")
             return
             
-        print(f"导入 {folder_path} 文件夹内的所有 *.123share 文件中")
+        logger.info(f"兼容模式：开始导入 {folder_path} 文件夹内的所有 *.123share 文件。")
         filenames = os.listdir(folder_path)
         # 过滤确保是文件夹中的文件，而不是子目录
         filenames_to_process = []
@@ -69,15 +72,16 @@ class Pan123Database:
                 # 为避免重复插入导致错误，先查询
                 self.database.execute("SELECT 1 FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
                 if self.database.fetchone():
-                    tqdm.write(f"兼容模式：{filename_base}.123share (codeHash: {codeHash}) 已存在于数据库，跳过导入。")
+                    log_msg = f"兼容模式：{filename_base}.123share (codeHash: {codeHash}) 已存在于数据库，跳过导入。"
+                    tqdm.write(log_msg)
+                    logger.info(log_msg)
                 else:
                     self.insertData(codeHash, rootFolderName, True, shareCode) # 默认旧的公开资源为 True
-                    if self.debug:
-                        print(f"兼容模式：导入 {filename_base}.123share 文件, rootFolderName: {rootFolderName}, codeHash: {codeHash}")
+                    logger.info(f"兼容模式：成功导入 {filename_base}.123share 文件, rootFolderName: {rootFolderName}, codeHash: {codeHash}")
                 #可以选择删除文件，但为了安全起见，先注释掉，可以手动清理
                 # os.remove(file_path_to_read)
             except Exception as e:
-                print(f"兼容模式：处理 {filename_base}.123share 时发生错误: {e}")
+                logger.error(f"兼容模式：处理 {filename_base}.123share 时发生错误: {e}", exc_info=True)
 
     def downloadLatestDatabase(self, file_path="./latest.db"):
         url = 'https://ghfast.top/https://raw.githubusercontent.com/realcwj/123Pan-Unlimited-Share/refs/heads/main/assets/PAN123DATABASE.db' 
@@ -100,12 +104,12 @@ class Pan123Database:
         codeHashes_to_import = [row[0] for row in database_to_import.fetchall()]
         
         # 遍历要导入的数据库中的每一条记录
+        logger.info(f"开始导入数据库: {database_path}")
         for codeHash in tqdm(codeHashes_to_import, desc=f"导入数据库: {database_path}"):
             # 检查当前数据库中是否已存在相同的 codeHash
             self.database.execute("SELECT 1 FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
             if self.database.fetchone():
-                if self.debug:
-                    print(f"跳过导入 {codeHash}，因为它已存在于当前数据库。")
+                logger.debug(f"跳过导入 {codeHash}，因为它已存在于当前数据库。")
                 continue  # 跳过已存在的记录
 
             # 从要导入的数据库中获取该记录的其他字段
@@ -114,15 +118,11 @@ class Pan123Database:
 
             # 插入到当前数据库
             self.insertData(codeHash, rootFolderName, visibleFlag, shareCode)
-            if self.debug:
-                print(f"导入 {codeHash}，rootFolderName: {rootFolderName}, visibleFlag: {visibleFlag}")
-            else:
-                print(f"新增资源: {rootFolderName} ({codeHash})")
+            logger.info(f"从外部数据库导入新增资源: {rootFolderName} (Hash: {codeHash}), visibleFlag: {visibleFlag}")
 
         # 关闭导入的数据库连接
         conn_to_import.close()
-        if self.debug:
-            print(f"导入了 {len(codeHashes_to_import)} 条记录到当前数据库。")
+        logger.info(f"数据库 {database_path} 导入完成，尝试导入 {len(codeHashes_to_import)} 条记录。")
         
         # 删除导入的数据库文件
         os.remove(database_path)
@@ -136,17 +136,15 @@ class Pan123Database:
                 (codeHash, rootFolderName, visibleFlag, shareCode)
             )
             self.conn.commit()
-            if self.debug:
-                print(f"成功插入数据: codeHash={codeHash}, rootFolderName={rootFolderName}, visibleFlag={visibleFlag}")
+            logger.debug(f"成功插入数据: codeHash={codeHash}, rootFolderName={rootFolderName}, visibleFlag={visibleFlag}")
             return True # 返回 True 表示插入成功
         except sqlite3.IntegrityError: # 捕获唯一约束冲突
             # 这个错误理论上不应该发生，因为 web.py 会先检查和删除（如果需要覆写）
             # 但如果直接调用此方法且 codeHash 已存在且不是覆写场景，则会到这里
-            if self.debug: # 在 debug 模式下打印更详细的信息
-                 print(f"插入数据失败: 短分享码 (codeHash): {codeHash} 已存在 (完整性错误). 这通常意味着调用方未正确处理覆写逻辑。")
+            logger.warning(f"插入数据失败: 短分享码 (codeHash): {codeHash} 已存在 (IntegrityError)。")
             return False # 返回 False 表示因主键冲突插入失败
         except Exception as e:
-            print(f"插入数据失败, 原因: {e}")
+            logger.error(f"插入数据失败 (codeHash={codeHash}): {e}", exc_info=True)
             return False
 
     def queryHash(self, codeHash:str):
@@ -195,12 +193,10 @@ class Pan123Database:
             ))
         
         if len(result):
-            if self.debug:
-                print(f"通过 codeHash '{codeHash}' 查询到数据: rootFolderName='{result[0]}', visibleFlag={result[2]}")
+            logger.debug(f"通过 codeHash '{codeHash}' 查询到数据: rootFolderName='{result[0][0]}', visibleFlag={result[0][2]}") # result[0] 是元组
             return result # 返回 (rootFolderName, shareCode, visibleFlag)
         else:
-            if self.debug:
-                print(f"通过 codeHash '{codeHash}' 未查询到数据")
+            logger.debug(f"通过 codeHash '{codeHash}' 未查询到数据")
             return None
 
     def listData(self, visibleFlag: bool = True):
@@ -212,13 +208,11 @@ class Pan123Database:
     def deleteData(self, codeHash:str):
         self.database.execute("SELECT codeHash FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
         if self.database.fetchone() is None:
-            if self.debug: # 在 debug 模式下打印信息
-                print(f"codeHash: {codeHash} 不存在, 不删除")
+            logger.debug(f"尝试删除 codeHash: {codeHash}, 但记录不存在。")
             return False # False 表示未找到，所以未删除
         self.database.execute("DELETE FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
         self.conn.commit()
-        if self.debug:
-            print(f"已删除 codeHash: {codeHash}")
+        logger.warning(f"已删除 codeHash: {codeHash}") # 高敏感度操作, 用 warning 级别
         return True # True 表示成功删除
 
     def listAllDataForAdmin(self):
@@ -240,15 +234,13 @@ class Pan123Database:
             self.database.execute("UPDATE PAN123DATABASE SET visibleFlag=? WHERE codeHash=?", (newVisibleFlag, codeHash))
             self.conn.commit()
             if self.database.rowcount > 0:
-                if self.debug:
-                    print(f"已更新 codeHash: {codeHash} 的 visibleFlag 为 {newVisibleFlag}")
+                logger.info(f"已更新 codeHash: {codeHash} 的 visibleFlag 为 {newVisibleFlag}")
                 return True
             else:
-                if self.debug:
-                    print(f"未找到 codeHash: {codeHash}，无法更新 visibleFlag")
-                return False # 未找到记录
+                logger.warning(f"未找到 codeHash: {codeHash}，无法更新 visibleFlag。")
+                return False
         except Exception as e:
-            print(f"更新 visibleFlag 失败 (codeHash: {codeHash}): {e}")
+            logger.error(f"更新 visibleFlag 失败 (codeHash: {codeHash}): {e}", exc_info=True)
             return False
  
     def updateRootFolderName(self, codeHash: str, newRootFolderName: str):
@@ -256,15 +248,13 @@ class Pan123Database:
             self.database.execute("UPDATE PAN123DATABASE SET rootFolderName=? WHERE codeHash=?", (newRootFolderName, codeHash))
             self.conn.commit()
             if self.database.rowcount > 0:
-                if self.debug:
-                    print(f"已更新 codeHash: {codeHash} 的 rootFolderName 为 {newRootFolderName}")
+                logger.debug(f"已更新 codeHash: {codeHash} 的 rootFolderName 为 {newRootFolderName}")
                 return True
             else:
-                if self.debug:
-                    print(f"未找到 codeHash: {codeHash}，无法更新 rootFolderName")
-                return False # 未找到记录
+                logger.warning(f"未找到 codeHash: {codeHash}，无法更新 rootFolderName。")
+                return False
         except Exception as e:
-            print(f"更新 rootFolderName 失败 (codeHash: {codeHash}): {e}")
+            logger.error(f"更新 rootFolderName 失败 (codeHash: {codeHash}): {e}", exc_info=True)
             return False
 
     def close(self):
@@ -275,24 +265,24 @@ class Pan123Database:
 
 if __name__ == "__main__":
 
-    db = Pan123Database(
-        dbpath="./assets/test.db",
-        debug=True
-        )
+    logging.basicConfig(level=logging.INFO, format='[%(asctime)s.%(msecs)03d][%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
+    for handler in logging.root.handlers[:]:
+        print(f"Handler: {handler}")
+
+    db = Pan123Database(dbpath="./assets/test.db")
 
     # 从 ./export 导入文件 (兼容旧版)
-    db.importShareFiles(folder_path="./export")
+    # db.importShareFiles(folder_path="./export")
 
-    print()
-    print("--- 测试 listData (公开资源) ---")
-    print()
+    logger.info("\n\n--- 测试 listData (公开资源) ---\n")
 
     public_shares = db.listData()
     if public_shares:
         for item in public_shares:
-            print(item) # (codeHash, rootFolderName, timeStamp)
+            logger.info(str(item))
     else:
-        print("无公开资源")
+        logger.info("无公开资源")
 
     # 测试导入新数据库
     # new_db_path = "./assets/latest.db"

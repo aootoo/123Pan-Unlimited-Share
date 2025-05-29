@@ -1,7 +1,10 @@
-import os
+import os, logging, json
 from Pan123 import Pan123
 
 if __name__ == "__main__":
+
+    logging.basicConfig(level=logging.INFO, format='[%(asctime)s.%(msecs)03d][%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    logger = logging.getLogger(__name__)
 
     # 模式："export" (从私人网盘分享) 或 "import" (导入) 或 "link" (从分享链接导出)
     mode = "import"
@@ -46,7 +49,7 @@ if __name__ == "__main__":
     #############################下边的代码不用动 #############################
     #########################################################################
     # 初始化
-    driver = Pan123(debug=False)
+    driver = Pan123()
     # 登录
     if mode in ["export", "import"]:
         driver.doLogin(
@@ -59,9 +62,13 @@ if __name__ == "__main__":
             if currentState.get("isFinish"):
                 with open(filePath, "w") as f:
                     f.write(currentState.get("message"))
-                print("导出成功")
+                logger.info(f"导出成功, 文件保存在: {filePath}")
             else:
-                print(currentState.get("message"))
+                msg = currentState.get("message")
+                if isinstance(msg, dict):
+                    logger.info(json.dumps(msg, ensure_ascii=False))
+                else:
+                    logger.info(msg)
     # 从分享链接导出
     elif mode == "link":
         for currentState in driver.exportShare(parentFileId=parentFileId,
@@ -70,9 +77,13 @@ if __name__ == "__main__":
             if currentState.get("isFinish"):
                 with open(filePath, "w") as f:
                     f.write(currentState["message"])
-                print("导出成功")
+                logger.info(f"导出成功, 文件保存在: {filePath}")
             else:
-                print(currentState["message"])
+                msg = currentState.get("message")
+                if isinstance(msg, dict):
+                    logger.info(json.dumps(msg, ensure_ascii=False))
+                else:
+                    logger.info(msg)
     # 导入
     elif mode == "import":
         with open(filePath, "r") as f:

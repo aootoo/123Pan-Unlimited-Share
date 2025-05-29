@@ -5,7 +5,6 @@ from api.api_utils import custom_secure_filename_part # 从共享工具导入
 from api.admin.admin_utils import admin_required
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
-DEBUG = loadSettings("DEBUG")
 
 @admin_required
 def handle_admin_update_share_name():
@@ -22,7 +21,7 @@ def handle_admin_update_share_name():
 
     db = None
     try:
-        db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
+        db = Pan123Database(dbpath=DATABASE_PATH)
         if db.updateRootFolderName(code_hash, new_name_cleaned):
             return jsonify({"success": True, "message": "分享名称更新成功。", "cleanedName": new_name_cleaned}), 200
         else:

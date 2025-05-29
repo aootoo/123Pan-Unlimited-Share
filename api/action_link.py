@@ -8,8 +8,6 @@ from utils import getStringHash, loadSettings
 from api.api_utils import custom_secure_filename_part, handle_database_storage
 from queueManager import QUEUE_MANAGER
 
-DEBUG = loadSettings("DEBUG")
-
 def handle_link_request(data):
     parent_file_id_str = data.get('parentFileId', '0')
     share_key = data.get('shareKey')
@@ -82,7 +80,7 @@ def handle_link_request(data):
                 current_app.logger.warning(f"任务 {task_id} (链接导出) 退出排队循环但 processed_by_queue 仍为 false，任务不执行。")
                 return
 
-            driver = Pan123(debug=DEBUG) 
+            driver = Pan123() 
             final_b64_string_data = None
             short_share_code_result = None
             pan123_op_successful = False
@@ -90,7 +88,7 @@ def handle_link_request(data):
             yield f"{json.dumps({'isFinish': None, 'message': '开始从分享链接导出文件列表...'})}\n"
             
             for state in driver.exportShare(parentFileId=parent_file_id_internal, shareKey=share_key, sharePwd=share_pwd):
-                current_app.logger.debug(f"任务 {task_id} exportShare state: {state.get('message')[:100] if isinstance(state.get('message'), str) else state.get('message')}")
+                current_app.logger.debug(f"任务 {task_id} exportShare state: {json.dumps(state, ensure_ascii=False)}")
                 if state.get("isFinish") is True:
                     final_b64_string_data = state["message"]
                     pan123_op_successful = True

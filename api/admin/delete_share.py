@@ -4,7 +4,6 @@ from utils import loadSettings
 from api.admin.admin_utils import admin_required
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
-DEBUG = loadSettings("DEBUG")
 
 @admin_required
 def handle_admin_delete_share():
@@ -16,7 +15,7 @@ def handle_admin_delete_share():
 
     db = None
     try:
-        db = Pan123Database(dbpath=DATABASE_PATH, debug=DEBUG)
+        db = Pan123Database(dbpath=DATABASE_PATH)
         if db.deleteData(code_hash): # deleteData 返回 True 如果删除成功
             return jsonify({"success": True, "message": "分享记录删除成功。"}), 200
         else:

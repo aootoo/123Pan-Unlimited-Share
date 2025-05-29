@@ -4,7 +4,6 @@ from utils import getStringHash, loadSettings
 from api.api_utils import custom_secure_filename_part, handle_database_storage 
 
 DATABASE_PATH = loadSettings("DATABASE_PATH")
-DEBUG = loadSettings("DEBUG")
 
 def handle_submit_database():
     data = request.get_json()
@@ -42,9 +41,8 @@ def handle_submit_database():
             share_project_flag # is_share_project_request
         )
         
-        if DEBUG:
-            for msg in log_msgs:
-                current_app.logger.debug(f"[SubmitDB API Log]: {msg}")
+        for msg in log_msgs:
+            current_app.logger.debug(f"[SubmitDB API Log]: {msg}")
 
         if op_overall_success and result_hash:
             # 只要操作被认为是成功的（例如，记录已存在且短码有效，或新记录已插入）

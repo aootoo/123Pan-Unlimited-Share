@@ -1,15 +1,17 @@
 import requests
 import json
 import os
+import logging
 from bs4 import BeautifulSoup
 import urllib.parse
 from tqdm import tqdm
 from Pan123 import Pan123
 from Pan123Database import Pan123Database
-from utils import getStringHash, loadSettings
-from generateContentTree import generateContentTree
+from utils import getStringHash, loadSettings, generateContentTree
 
-def getContent(channel_name, after_id, debug=False):
+logger = logging.getLogger(__name__)
+
+def getContent(channel_name, after_id):
 
     base_url = f"https://t.me/s/{channel_name}"
     
@@ -44,9 +46,7 @@ def getContent(channel_name, after_id, debug=False):
     
     # return xml_data
     
-    if debug:
-        print(f"请求：{request_url}")
-        # print(f"响应：{response.text}")
+    logger.debug(f"getContent 请求: {request_url}")
     
     # 返回的内容有以下几种情况：
     ## 第一种：后面还有东西，存在"tgme_widget_message_centered js-messages_more_wrap"字段，指向下一页
@@ -81,16 +81,14 @@ def getContent(channel_name, after_id, debug=False):
                 raise ValueError("找不到消息id")
             else:
                 message_dict[current_message_id] = line
-            if debug:
-                print(f"存储消息：{current_message_id}")
+            logger.debug(f"getContent 存储消息: {current_message_id}")
             continue
         # 处理第一种情况
         elif "tgme_widget_message_centered js-messages_more_wrap" in line:
             # 截取 data-after="xxxx" 中的 xxxx
             line = line.split("data-after=\"")[1].split("\"")[0]
             line = int(line) # 转换为 int, 此处还可以确保分割正确
-            if debug:
-                print(f"下一页：{line}")
+            logger.debug(f"getContent 下一页: {line}")
             return message_dict, line
         else:
             pos+=1
@@ -114,7 +112,7 @@ def beautifyXML(xml_text):
 
     return lines + links
 
-def getNameLinkPwd(content_list, debug=False):
+def getNameLinkPwd(content_list):
     # 乱七八糟的, 有没有大佬帮忙优化一下
     name = content_list[0].replace("：", ":").replace("名称:", "").replace("资源名称:", "").replace("标题:", "")
     if any([i in name for i in ["automatically deleted", "com/s/", "无法进入群聊"]]):
@@ -134,11 +132,9 @@ def getNameLinkPwd(content_list, debug=False):
         if "/s/" in line:
             raw_link = line
             line = line.replace("提取码", "?提取码")
-            if debug:
-                print(f"原文>>>{line}")
+            # print(f"原文>>>{line}")
             line = line.split(".com/s/")[1]
-            if debug:
-                print(f"链接>>>{line}")
+            # print(f"链接>>>{line}")
             if "提取码" in line:
                 link = line.split("?")[0]
                 pwd = line.split(":")[1]
@@ -148,11 +144,11 @@ def getNameLinkPwd(content_list, debug=False):
     name = name.replace("  ", " ").replace("  ", " ").replace("  ", " ")
     return {"name": name, "link": link, "pwd": pwd, "raw_link": raw_link, "processed": False}
 
-def startSpider(channel_name, message_after_id=None, save_interval=10, debug=False):
+def startSpider(channel_name, message_after_id=None, save_interval=10):
 
     # 如果没有填写channel_name, 直接跳过
     if not channel_name:
-        print("[Telegram爬虫] 没有填写channel_name, 直接跳过")
+        logger.info("[Telegram爬虫] 没有填写channel_name, 跳过爬取。")
         return
 
     file_path = f"{channel_name}_message_raw.json"
@@ -161,7 +157,7 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, debug=Fal
 
     if os.path.exists(file_path):
         if message_after_id is not None:
-            print("已存在Json文件, 强制message_after_id=None, 从Json文件中读取最大的一个数字开始爬")
+            logger.info(f"已存在原始消息文件 {file_path}, 将从Json文件中记录的最大消息ID开始爬取。")
             message_after_id = None
         with open(file_path, "r", encoding="utf-8") as f:
             total_json_raw_data = json.load(f)
@@ -170,17 +166,16 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, debug=Fal
 
     count = 0
     while True:
-        print(f"爬取第{int(next_page)+1}条message")
+        logger.info(f"开始爬取 Telegram 频道 '{channel_name}', 起始 after_id: {next_page} (第 {int(next_page)+1} 条开始)")
         message_dict, next_page = getContent(
             channel_name=channel_name,
-            after_id=next_page,
-            debug=debug
+            after_id=next_page
         )
         total_json_raw_data.update(message_dict)
         count += 1
         if count % save_interval == 0:
             # 保存到Json文件
-            print(f"触发间隔{save_interval}, 保存到Json文件")
+            logger.info(f"已爬取 {count}批 消息, 触发间隔保存到原始消息文件: {file_path}")
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(total_json_raw_data, f, ensure_ascii=False, indent=4)
         # 退出条件: next_page is None（没有下一页了）
@@ -195,7 +190,7 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, debug=Fal
 
     # 数据清洗，批量得到name, link, pwd
     for key, value in tqdm(total_json_raw_data.items(), desc="获取资源名称/链接/密码中..."):
-        result = getNameLinkPwd(beautifyXML(value), debug=debug)
+        result = getNameLinkPwd(beautifyXML(value))
         if len(result.get("name")) and len(result.get("link")):
             total_json_processed_data[key] = result
     
@@ -234,17 +229,15 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, debug=Fal
     for key, value in total_json_processed_data.items():
         # 如果处理过了，跳过
         if value.get("processed"):
-            if debug:
-                print(f"[{key}] 跳过：{value.get('name')}, 原因：已处理过")
+            logger.debug(f"[{key}] 跳过对 '{value.get('name')}' 的导入, 原因：已标记为处理过。")
             continue
         value["processed"] = True
         # 如果name已经存在, 则跳过
         if len(db.queryName(rootFolderName=value.get("name"))):
-            if debug:
-                print(f"[{key}] 跳过：{value.get('name')}, 原因：数据库内已存在")
+            logger.info(f"[{key}] 跳过对 '{value.get('name')}' 的导入, 原因：数据库内已同名存在。")
             continue
-        print(f"[{key}] 导入新增内容：{value.get('name')}, 链接：{value.get('link')}, 密码：{value.get('pwd')}")
-        driver = Pan123(debug=debug)
+        logger.info(f"[{key}] 尝试导入新增内容: '{value.get('name')}', 链接Key: {value.get('link')}, 密码: {value.get('pwd')}")
+        driver = Pan123()
         iter_driver = driver.exportShare(shareKey=value.get("link"), sharePwd=value.get("pwd"), parentFileId=0)
         for current_state in iter_driver:
             if current_state.get("isFinish"):
@@ -252,11 +245,11 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, debug=Fal
                 # 获取目录树
                 content_tree = generateContentTree(b64string)["message"]
                 content_tree = "\n".join(content_tree)
-                print(f"[{key}] 目录树：\n\n{content_tree}")
+                logger.info(f"[{key}] 为 '{value.get('name')}' 生成的目录树:\n{content_tree}")
                 res = input(f"资源名称 >>> {value.get('name')}\n\n是否导入? (y/[n]) >>>")
                 res = res if res else "n"
                 if res != "y":
-                    print(f"[{key}] 跳过：{value.get('name')}, 原因：用户取消")
+                    logger.info(f"[{key}] 用户取消导入: '{value.get('name')}'")
                     continue
                 else:                
                     db.insertData(
@@ -269,7 +262,7 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, debug=Fal
             elif current_state.get("isFinish") is None:
                 continue
             else:
-                print(f"[{key}] 导入失败：{value.get('name')}, 原因：{current_state.get('message')}")
+                logger.error(f"[{key}] 导入失败: '{value.get('name')}', 原因: {current_state.get('message')}")
                 break
 
     # 保存到Json文件
@@ -277,6 +270,8 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, debug=Fal
         json.dump(total_json_processed_data, f, ensure_ascii=False, indent=4)
 
 if __name__ == "__main__":
+
+    logging.basicConfig(level=logging.INFO, format='[%(asctime)s.%(msecs)03d][%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
     channel_name = "" # 大家应该都知道是telegram的哪个群, 自己填入（@xxxx的xxxx部分）, GitHub不明说了
     message_after_id = 8050 # 从 8050 开始爬, 因为之前的内容【全】【都】【失】【效】【了】

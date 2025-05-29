@@ -7,7 +7,6 @@ from utils import getStringHash, loadSettings
 from api.api_utils import custom_secure_filename_part, handle_database_storage
 from queueManager import QUEUE_MANAGER
 
-DEBUG = loadSettings("DEBUG")
 
 def handle_export_request(data):
     username = data.get('username')
@@ -90,7 +89,7 @@ def handle_export_request(data):
             if generate_short_code_flag and not cleaned_db_root_name: 
                 cleaned_db_root_name = f"导出的分享_{int(time.time())}"
 
-            driver = Pan123(debug=DEBUG)
+            driver = Pan123()
             final_b64_string_data = None
             short_share_code_result = None
             pan123_op_successful = False
@@ -104,7 +103,7 @@ def handle_export_request(data):
             yield f"{json.dumps({'isFinish': None, 'message': '登录成功，开始导出文件列表...'})}\n"
             
             for state in driver.exportFiles(parentFileId=parent_file_id_internal):
-                current_app.logger.debug(f"任务 {task_id} exportFiles state: {state.get('message')[:100] if isinstance(state.get('message'), str) else state.get('message')}")
+                current_app.logger.debug(f"任务 {task_id} exportFiles state: {json.dumps(state, ensure_ascii=False)}")
                 if state.get("isFinish") is True:
                     final_b64_string_data = state["message"]
                     pan123_op_successful = True

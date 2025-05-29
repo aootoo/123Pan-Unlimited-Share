@@ -1,3 +1,4 @@
+import logging
 import time
 import requests
 from tqdm import tqdm
@@ -7,14 +8,14 @@ import random
 
 from utils import anonymizeId, makeAbsPath
 
+logger = logging.getLogger(__name__)
+
 class Pan123:
     # Refer: https://github.com/AlistGo/alist/blob/main/drivers/123/util.go
     
-    def __init__(self, sleepTime=0.1, debug=False):
+    def __init__(self, sleepTime=0.1):
         # 等待时间 (基于输入值[60%, 140%]范围随机取样)
         self.sleepTime = lambda: random.uniform(sleepTime*0.6, sleepTime*1.4)
-        # 调试模式
-        self.debug = debug
         # 初始化accessToken和headers
         self.accessToken = None
         self.headers = {
@@ -92,16 +93,15 @@ class Pan123:
             if token:
                 self.accessToken = token # 存储获取到的access_token
                 self.headers["authorization"] = f"Bearer {self.accessToken}"
-                if self.debug:
-                    print(f"登录成功，access_token: {self.accessToken}")
+                logger.debug(f"登录成功，access_token: {self.accessToken[:10]}...") # 不记录完整token, 保护隐私
                 return True
             else:
                 # 理论上，如果code不是200或者token缺失，sendRequest的code检查应该已经捕获了此情况
                 # 此处作为一个额外保障
-                print(f"登录失败：{response_data}")
+                logger.error(f"登录失败: {json.dumps(response_data, ensure_ascii=False)}")
                 return None
         except Exception as e:
-            print(f"登录请求发生异常: {e}")
+            logger.error(f"登录请求发生异常: {e}", exc_info=True)
             self.accessToken = None
             return None
     
@@ -117,14 +117,13 @@ class Pan123:
             if response_data.get("code") == 200:
                 self.accessToken = None
                 self.headers["authorization"] = None
-                if self.debug:
-                    print("注销成功")
+                logger.debug("注销成功")
                 return True
             else:
-                print(f"注销失败：{response_data}")
+                logger.error(f"注销失败: {json.dumps(response_data, ensure_ascii=False)}")
                 return None
         except Exception as e:
-            print(f"注销请求发生异常: {e}")
+            logger.error(f"注销请求发生异常: {e}", exc_info=True)
             self.accessToken = None
             return None
         
@@ -161,8 +160,7 @@ class Pan123:
                 # 更新Page参数
                 page += 1
                 body.update({"Page": f"{page}"})
-                if self.debug:
-                    print(f"获取文件列表中：正在获取第{page}页")
+                logger.debug(f"listFiles: 正在获取第 {page} 页, parentFileId: {parentFileId}")
                 # 发送请求
                 time.sleep(self.sleepTime())
                 response_data = requests.get(
@@ -176,15 +174,14 @@ class Pan123:
                     ALL_ITEMS.extend(response_data.get("InfoList"))
                     # 如果没有下一页，就退出循环
                     if (response_data.get("Next") == "-1") or (len(response_data.get("InfoList")) == 0):
-                        if self.debug:
-                            print("已是最后一页")
+                        logger.debug(f"listFiles: 已是最后一页 (parentFileId: {parentFileId}, page: {page})")
                         break
                     # 否则进入下一页 (等待 self.sleepTime 秒, 防止被封)
                     else:
-                        if self.debug:
-                            print(f"等待 self.sleepTime 秒后进入下一页")
+                        logger.debug(f"listFiles: 等待 {self.sleepTime()} 秒后进入下一页 (parentFileId: {parentFileId}, page: {page})")
                         time.sleep(self.sleepTime())
                 else:
+                    logger.warning(f"获取文件列表失败 (parentFileId: {parentFileId}, page: {page}): {json.dumps(response_data, ensure_ascii=False)}")
                     yield {"isFinish": False, "message": f"获取文件列表失败：{response_data}"}
 
             # 递归获取子文件夹下的文件
@@ -196,6 +193,7 @@ class Pan123:
             self.listFilesVisited[parentFileId] = ALL_ITEMS
 
         except Exception as e:
+            logger.error(f"listFiles 请求发生异常 (parentFileId: {parentFileId}): {e}", exc_info=True)
             yield {"isFinish": False, "message": f"获取文件列表请求发生异常: {e}"}
 
     def exportFiles(self, parentFileId):
@@ -252,13 +250,14 @@ class Pan123:
             ).json()
             if response_data.get("code") == 0:
                 fileId = response_data.get("data").get("Info").get("FileId")
-                if self.debug:
-                    print(f"创建文件夹成功：{folderName}, fileId: {fileId}")
+                logger.debug(f"创建文件夹成功: {folderName}, fileId: {fileId}")
                 # 返回文件夹Id
                 return {"isFinish": True, "message": fileId}
             else:
+                logger.error(f"创建文件夹失败 (parentFileId: {parentFileId}, folderName: {folderName}): {json.dumps(response_data, ensure_ascii=False)}")
                 return {"isFinish": False, "message": f"创建文件夹失败：{response_data}"}
         except Exception as e:
+            logger.error(f"创建文件夹请求发生异常 (parentFileId: {parentFileId}, folderName: {folderName}): {e}", exc_info=True)
             return {"isFinish": False, "message": f"创建文件夹请求发生异常: {e}"}
     
     def uploadFile(self, etag, fileName, parentFileId, size):
@@ -280,13 +279,14 @@ class Pan123:
             ).json()
             if response_data.get("code") == 0:
                 fileId = response_data.get("data").get("Info").get("FileId")
-                if self.debug:
-                    print(f"上传文件成功：{fileName}, fileId: {fileId}")
+                logger.debug(f"上传文件成功: {fileName}, fileId: {fileId}, parentFileId: {parentFileId}")
                 # 返回文件Id
                 return {"isFinish": True, "message": fileId}
             else:
+                logger.error(f"上传文件失败 (parentFileId: {parentFileId}, fileName: {fileName}): {json.dumps(response_data, ensure_ascii=False)}")
                 return {"isFinish": False, "message": f"上传文件失败：{response_data}"}
         except Exception as e:
+            logger.error(f"上传文件请求发生异常 (parentFileId: {parentFileId}, fileName: {fileName}): {e}", exc_info=True)
             return {"isFinish": False, "message": f"上传文件请求发生异常: {e}"}
     
     def importFiles(self, base64Data, rootFolderName):
@@ -295,6 +295,7 @@ class Pan123:
         try:
             files_list = json.loads(base64.urlsafe_b64decode(base64Data))
         except Exception as e:
+            logger.error(f"importFiles: 读取 base64Data 失败: {e}", exc_info=True)
             yield {"isFinish": False, "message": f"读取数据失败, 报错：{e}"}
         yield {"isFinish": None, "message": "数据读取完成"}
         
@@ -316,6 +317,7 @@ class Pan123:
                     "fileDepth": item.get("AbsPath").count("/"),
                 })
             else:
+                logger.error(f"importFiles: 未知文件类型: {json.dumps(item, ensure_ascii=False)}")
                 raise ValueError(f"未知类型：{item}")
 
         ALL_FOLDERS.sort(key=lambda x: x.get("folderDepth")) # 按照深度从0(根目录)开始排序
@@ -332,6 +334,7 @@ class Pan123:
         if rootFolderId.get("isFinish"): # 如果创建成功
             rootFolderId = rootFolderId.get("message") # 获取文件夹ID
         else:
+            logger.error(f"importFiles: 创建根目录失败: {json.dumps(rootFolderId, ensure_ascii=False)}")
             yield rootFolderId # 返回错误信息
         # 如果分享的内容包含目录 (root目录放在目录的检测中记录)
         tqdm_bar = tqdm(total=len(ALL_FOLDERS))
@@ -347,6 +350,7 @@ class Pan123:
             if newFolderId.get("isFinish"): # 如果创建成功
                 newFolderId = newFolderId.get("message") # 获取文件夹ID
             else:
+                logger.error(f"importFiles: 创建子目录 {folder.get('FileName')} 失败: {json.dumps(newFolderId, ensure_ascii=False)}")
                 yield newFolderId # 返回错误信息
             
             # 映射原文件夹ID到新文件夹ID
@@ -380,6 +384,7 @@ class Pan123:
             if newFileId.get("isFinish"): # 如果上传成功
                 newFileId = newFileId.get("message") # 获取文件ID (目前没用到)
             else:
+                logger.error(f"importFiles: 上传文件 {item.get('FileName')} 失败: {json.dumps(newFileId, ensure_ascii=False)}")
                 yield newFileId # 返回错误信息
             
             tqdm_bar.update(1)
@@ -424,8 +429,7 @@ class Pan123:
                 # 更新Page参数
                 page += 1
                 body.update({"Page": f"{page}"})
-                if self.debug:
-                    print(f"获取文件列表中：正在获取第{page}页")
+                logger.debug(f"listShare: 正在获取第 {page} 页, parentFileId: {parentFileId}, shareKey: {shareKey}")
                 # 发送请求
                 time.sleep(self.sleepTime())
                 response_data = requests.get(
@@ -439,15 +443,14 @@ class Pan123:
                     ALL_ITEMS.extend(response_data.get("InfoList"))
                     # 如果没有下一页，就退出循环
                     if (response_data.get("Next") == "-1") or (len(response_data.get("InfoList")) == 0):
-                        if self.debug:
-                            print("已是最后一页")
+                        logger.debug(f"listShare: 已是最后一页 (parentFileId: {parentFileId}, page: {page}, shareKey: {shareKey})")
                         break
                     # 否则进入下一页 (等待 self.sleepTime 秒, 防止被封)
                     else:
-                        if self.debug:
-                            print(f"等待 self.sleepTime 秒后进入下一页")
+                        logger.debug(f"listShare: 等待 {self.sleepTime()} 秒后进入下一页 (parentFileId: {parentFileId}, page: {page}, shareKey: {shareKey})")
                         time.sleep(self.sleepTime())
                 else:
+                    logger.warning(f"listShare 获取文件列表失败 (parentFileId: {parentFileId}, page: {page}, shareKey: {shareKey}): {json.dumps(response_data, ensure_ascii=False)}")
                     yield {"isFinish": False, "message": f"获取文件列表失败：{response_data}"}
 
             # 递归获取子文件夹下的文件
@@ -463,6 +466,7 @@ class Pan123:
             self.listShareVisited[parentFileId] = ALL_ITEMS
 
         except Exception as e:
+            logger.error(f"listShare 请求发生异常 (parentFileId: {parentFileId}, shareKey: {shareKey}): {e}", exc_info=True)
             yield {"isFinish": False, "message": f"获取文件列表请求发生异常: {e}"}
 
     def exportShare(self, shareKey, sharePwd, parentFileId=0):
@@ -479,8 +483,7 @@ class Pan123:
         yield {"isFinish": None, "message": f"重建文件路径结构中..."}
         self.listShareVisited = makeAbsPath(
             fullDict=self.listShareVisited,
-            parentFileId=parentFileId,
-            debug=self.debug
+            parentFileId=parentFileId
         )
         yield {"isFinish": None, "message": f"重建文件路径结构完成"}
         
