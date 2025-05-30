@@ -37,6 +37,8 @@
 
 ### 已导入资源
 
+- [@Blog post 分享的 2025 动漫](https://www点123865点com/s/u9izjv-rguWv)
+
 - [@·无名之辈· 分享的 音乐大包](https://www点123684点com/s/oec7Vv-4bFWh)
 
 - [@一笔轻安 分享的 合集](https://www点123865点com/s/gD58Vv-PFmHh)
