@@ -147,7 +147,8 @@
             apiImportUrl: "{{ url_for('api_import_route') }}",
             apiListPublicSharesUrl: "{{ url_for('api_list_public_shares_route') }}",
             apiGetContentTreeUrl: "{{ url_for('api_get_content_tree_route') }}",
-            apiSearchDatabaseUrl: "{{ url_for('api_search_database_route') }}"
+            apiSearchDatabaseUrl: "{{ url_for('api_search_database_route') }}",
+            banIpEnabled: {{ BAN_IP_ENABLED | tojson }}
         };
     </script>
     <script src="{{ url_for('static', filename='js/cookieUtils.js') }}"></script>

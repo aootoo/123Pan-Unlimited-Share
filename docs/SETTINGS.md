@@ -36,4 +36,9 @@ LOG_DIR: "./logs"
 # 服务器部署时: 推荐使用 WARNING, 避免日志文件拉屎
 # 如果你想反馈 bug: 使用 DEBUG
 LOGGING_LEVEL: "INFO"
+
+# IP 地址区域限制设定
+# True: 启用IP区域检测，中国大陆IP将被重定向到 /banip 页面
+# False: 关闭IP区域检测，所有IP均可访问
+BAN_IP: True
 ```

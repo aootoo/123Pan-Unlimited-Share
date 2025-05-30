@@ -32,6 +32,7 @@ ADMIN_PASSWORD = loadSettings("ADMIN_PASSWORD")
 PORT = loadSettings("PORT")
 DATABASE_PATH = loadSettings("DATABASE_PATH") 
 SECRET_KEY = loadSettings("SECRET_KEY")
+BAN_IP_ENABLED = loadSettings("BAN_IP")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -55,7 +56,7 @@ logger.info(f"Flask 应用已加载全局日志配置。Flask logger level: {app
 # --- HTML 路由 ---
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', BAN_IP_ENABLED=BAN_IP_ENABLED)
 
 @app.route('/banip')
 def banip_page():
@@ -63,16 +64,15 @@ def banip_page():
 
 @app.route('/export')
 def export_page():
-    # make_response 是为了将来可能设置cookie等，当前可以简化
-    return render_template('export_form.html')
+    return render_template('export_form.html', BAN_IP_ENABLED=BAN_IP_ENABLED)
 
 @app.route('/import')
 def import_page():
-    return render_template('import_form.html')
+    return render_template('import_form.html', BAN_IP_ENABLED=BAN_IP_ENABLED)
 
 @app.route('/link')
 def link_page():
-    return render_template('link_form.html')
+    return render_template('link_form.html', BAN_IP_ENABLED=BAN_IP_ENABLED)
 
 # --- Admin HTML 路由 ---
 @app.route(f'/{ADMIN_ENTRY}/login', methods=['GET', 'POST'])

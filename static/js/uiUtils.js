@@ -320,8 +320,16 @@ function isAvailableRegionJS() {
  * 如果区域不受支持，则重定向到 /banip 页面。
  */
 async function checkRegionAndRedirect() {
+    // 检查 BAN_IP 设置是否为 false，如果是，则不执行IP检测
+    // 确保 window.APP_CONFIG 和 banIpEnabled 确实存在且被正确设置为布尔值
+    if (window.APP_CONFIG && typeof window.APP_CONFIG.banIpEnabled === 'boolean' && !window.APP_CONFIG.banIpEnabled) {
+        // console.log("IP区域检测已由 BAN_IP=False 配置禁用。"); // 中文注释
+        return; // 如果设置为False，则跳过IP检测
+    }
+
     // 仅当当前页面不是 /banip 时才执行检查和重定向，防止无限循环
-    if (window.location.pathname === '/banip' || window.location.pathname.startsWith('/admin_')) { // 管理员页面不进行区域检查
+    // 同时，管理员页面不进行区域检查
+    if (window.location.pathname === '/banip' || window.location.pathname.startsWith('/admin_')) {
         return;
     }
 
