@@ -1,5 +1,7 @@
+import base64
+import json
 from flask import jsonify, request
-from utils import getStringHash
+from utils import getStringHash, anonymizeId
 from loadSettings import loadSettings
 from api.api_utils import custom_secure_filename_part, handle_database_storage 
 
@@ -14,7 +16,15 @@ def handle_submit_database():
 
     root_folder_name_raw = data.get('rootFolderName')
     base64_data = data.get('base64Data')
-    share_project_flag = data.get('shareProject', False) 
+    share_project_flag = data.get('shareProject', False)
+    
+    try:
+        base64_data = json.loads(base64.urlsafe_b64decode(base64_data).decode("utf-8"))
+        base64_data = anonymizeId(base64_data)
+        base64_data = base64.urlsafe_b64encode(json.dumps(base64_data, ensure_ascii=False).encode("utf-8")).decode("utf-8")
+    except Exception as e:
+        logger.error(f"提交数据库时发生错误 (submit_database API): {e}", exc_info=True)
+        return jsonify({"isFinish": False, "message": "错误的请求：无法解析或验证 base64 数据。"}), 400
 
     # 参数校验
     if not root_folder_name_raw or not isinstance(root_folder_name_raw, str) or not root_folder_name_raw.strip():

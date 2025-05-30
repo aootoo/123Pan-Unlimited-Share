@@ -1,9 +1,10 @@
 import json
 import time
+import base64
 from flask import Response, stream_with_context
 from Pan123 import Pan123
 from Pan123Database import Pan123Database
-from utils import getStringHash
+from utils import getStringHash, anonymizeId
 from loadSettings import loadSettings
 from api.api_utils import custom_secure_filename_part, handle_database_storage
 from queueManager import QUEUE_MANAGER
@@ -114,6 +115,11 @@ def handle_import_request(data):
                 yield f"{json.dumps({'isFinish': None, 'message': f'准备使用长分享码导入，根目录名：{actual_root_folder_name_to_import}'})}\n"
                 if share_project_for_long_code: 
                     yield f"{json.dumps({'isFinish': None, 'message': '已勾选加入资源共享计划，正在将此长分享码存入数据库...'})}\n"
+                    yield f"{json.dumps({'isFinish': None,'message': '数据匿名化...'})}\n"
+                    actual_base64_data_to_import = json.loads(base64.urlsafe_b64decode(actual_base64_data_to_import).decode("utf-8"))
+                    actual_base64_data_to_import = anonymizeId(actual_base64_data_to_import)
+                    actual_base64_data_to_import = base64.urlsafe_b64encode(json.dumps(actual_base64_data_to_import, ensure_ascii=False).encode("utf-8")).decode("utf-8")
+                    yield f"{json.dumps({'isFinish': None,'message': '数据匿名化完成。'})}\n"
                     new_code_hash = getStringHash(actual_base64_data_to_import)
                     db_op_success, db_result_hash, db_log_msgs = handle_database_storage(
                         new_code_hash, actual_root_folder_name_to_import, None, 
