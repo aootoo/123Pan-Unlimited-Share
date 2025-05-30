@@ -32,7 +32,8 @@ SECRET_KEY: "114514"
 # 日志保存目录, 一般不动
 LOG_DIR: "./logs"
 # 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
-# 如果你想正常使用, 建议使用 WARNING
-# 如果你想反馈 bug, 使用 DEBUG
-LOGGING_LEVEL: "WARNING"
+# 如果你想正常使用: 建议使用 INFO
+# 服务器部署时: 推荐使用 WARNING, 避免日志文件拉屎
+# 如果你想反馈 bug: 使用 DEBUG
+LOGGING_LEVEL: "INFO"
 ```
