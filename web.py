@@ -16,6 +16,7 @@ from api.get_content_tree import handle_get_content_tree
 from api.get_sharecode import handle_get_sharecode
 from api.submit_database import handle_submit_database
 from api.search_database import handle_search_database
+from api.action_transform import handle_transform_to_123fastlink_json_request, handle_transform_from_123fastlink_json_request
 
 # --- 从 api.admin 包导入Admin API处理函数 ---
 from api.admin.admin_utils import admin_required
@@ -73,6 +74,10 @@ def import_page():
 @app.route('/link')
 def link_page():
     return render_template('link_form.html', BAN_IP_ENABLED=BAN_IP_ENABLED)
+
+@app.route('/transform')
+def transform_page():
+    return render_template('transform.html', BAN_IP_ENABLED=BAN_IP_ENABLED)
 
 # --- Admin HTML 路由 ---
 @app.route(f'/{ADMIN_ENTRY}/login', methods=['GET', 'POST'])
@@ -138,6 +143,14 @@ def api_submit_database_route():
 @app.route('/api/search_database', methods=['POST'])
 def api_search_database_route():
     return handle_search_database()
+
+@app.route('/api/transformShareCodeTo123FastLinkJson', methods=['POST'])
+def api_transform_to_123fastlink_json_route():
+    return handle_transform_to_123fastlink_json_request()
+
+@app.route('/api/transform123FastLinkJsonToShareCode', methods=['POST'])
+def api_transform_from_123fastlink_json_route():
+    return handle_transform_from_123fastlink_json_request()
 
 # --- Admin API 路由 ---
 @app.route(f'/api/{ADMIN_ENTRY}/get_shares', methods=['GET'])
