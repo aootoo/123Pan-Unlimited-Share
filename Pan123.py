@@ -228,6 +228,8 @@ class Pan123:
 
 
     def createFolder(self, parentFileId, folderName):
+        # 由于爬虫爬取到的数据可能会将分享名重命名为英文符号，触发创建文件夹失败，所以需要将文件夹名中的特殊字符替换回中文符号
+        folderName = folderName.replace(":", "：").replace(",", "，").replace(".", "。").replace("/", "／").replace("\\", "＼").replace("*", "＊").replace("?", "？")
         body = {
             "driveId":      0,
             "etag":         "",
