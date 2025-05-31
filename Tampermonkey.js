@@ -23,8 +23,8 @@
     'use strict';
 
     // --- Constants and Configuration ---
-    const SCRIPT_NAME = "123FastLink"; // 内部标识符，可以保留
-    const SCRIPT_VERSION = "v1.3.1-mod-v1"; // 脚本版本号
+    const SCRIPT_NAME = "123FastLink（with 123Pan-Unlimited-Share）";
+    const SCRIPT_VERSION = "v1.3.1-mod-v1"; // 修复指定文件夹转存问题
     const LEGACY_FOLDER_LINK_PREFIX_V1 = "123FSLinkV1$";
     const COMMON_PATH_LINK_PREFIX_V1 = "123FLCPV1$";
     const LEGACY_FOLDER_LINK_PREFIX_V2 = "123FSLinkV2$";
@@ -39,25 +39,18 @@
         SHARE_LIST: "/b/api/share/get"
     };
 
-    // 新增：公共资源库 API 端点 (路径部分)
+    // 公共资源库 API 端点 (相对路径)
     const PUBLIC_REPO_API_PATHS = {
         LIST_PUBLIC_SHARES: "/api/list_public_shares",
         SEARCH_DATABASE: "/api/search_database",
         GET_CONTENT_TREE: "/api/get_content_tree",
         GET_SHARE_CODE: "/api/get_sharecode",
-        SUBMIT_DATABASE: "/api/submit_database", // 用于在生成成功页提交 *本工具生成的链接*
-        TRANSFORM_TO_123FASTLINK: "/api/transformShareCodeTo123FastLinkJson",
-        TRANSFORM_FROM_123FASTLINK: "/api/transform123FastLinkJsonToShareCode" // 用于在生成成功页，将修改后的123FL JSON提交
+        SUBMIT_DATABASE: "/api/submit_database", // 虽然文档里是 submit_database, 但要求里是 transform123FastLinkJsonToShareCode，我们用后者
+        TRANSFORM_TO_123FL: "/api/transformShareCodeTo123FastLinkJson",
+        TRANSFORM_FROM_123FL: "/api/transform123FastLinkJsonToShareCode"
     };
-
-    // 新增：GM存储键
-    const GM_STORAGE_KEYS = {
-        PUBLIC_REPO_BASE_URL: 'fastlink_public_repo_base_url'
-    };
-
-    // 新增：默认公共资源库服务器地址
+    const PUBLIC_REPO_BASE_URL_KEY = "fastlink_public_repo_base_url";
     const DEFAULT_PUBLIC_REPO_BASE_URL = "http://222.186.21.40:33333/";
-    let currentPublicRepoBaseUrl = DEFAULT_PUBLIC_REPO_BASE_URL; // 会在初始化时加载
 
     const DOM_SELECTORS = {
         TARGET_BUTTON_AREA: '.ant-dropdown-trigger.sysdiv.parmiryButton',
@@ -112,6 +105,93 @@
         DEFAULT_FILTER_OPTIONS: {
             filterOnShareEnabled: true,
             filterOnTransferEnabled: true,
+        }
+    };
+
+    // --- Helper: GM_xmlhttpRequest Wrapper ---
+    function gmXmlHttpRequestPromise(details) {
+        return new Promise((resolve, reject) => {
+            GM_xmlhttpRequest({
+                ...details,
+                onload: (response) => {
+                    try {
+                        const responseData = JSON.parse(response.responseText);
+                        resolve(responseData);
+                    } catch (e) {
+                        console.error(`[${SCRIPT_NAME}] API响应JSON解析失败:`, response.responseText, e);
+                        reject(new Error(`API响应JSON解析失败: ${e.message}. 响应文本: ${response.responseText.substring(0,100)}`));
+                    }
+                },
+                onerror: (error) => {
+                    console.error(`[${SCRIPT_NAME}] API请求错误:`, error);
+                    reject(new Error(`API请求错误: ${error.statusText || '网络错误'}`));
+                },
+                ontimeout: () => {
+                    console.error(`[${SCRIPT_NAME}] API请求超时`);
+                    reject(new Error('API请求超时'));
+                }
+            });
+        });
+    }
+
+    // --- 公共资源库 API 调用封装 ---
+    const publicRepoApiHelper = {
+        getBaseUrl: () => GM_getValue(PUBLIC_REPO_BASE_URL_KEY, DEFAULT_PUBLIC_REPO_BASE_URL),
+        setBaseUrl: (url) => GM_setValue(PUBLIC_REPO_BASE_URL_KEY, url),
+
+        _call: async function(method, endpointPath, data = null, timeoutMs=15000) {
+            const baseUrl = this.getBaseUrl();
+            if (!baseUrl.startsWith("http") || !baseUrl.endsWith("/")) {
+                throw new Error("公共资源库服务器URL格式不正确，请在设置中修改。");
+            }
+            const url = new URL(endpointPath.startsWith('/') ? endpointPath.substring(1) : endpointPath, baseUrl).toString();
+            const details = {
+                method: method,
+                url: url,
+                headers: { "Content-Type": "application/json" },
+                timeout: timeoutMs,
+            };
+            if (data) {
+                details.data = JSON.stringify(data);
+            }
+            try {
+                return await gmXmlHttpRequestPromise(details);
+            } catch (e) {
+                console.error(`[${SCRIPT_NAME}] 公共资源库API调用失败 (${method} ${url}):`, e);
+                // 尝试从GM_xmlhttpRequest的错误中提取更具体的信息
+                let errorMessage = e.message;
+                 if (e.message && e.message.includes("API响应JSON解析失败") && e.message.includes("响应文本:")) {
+                    errorMessage = `请求失败：服务器返回了无法解析的内容。`;
+                } else if (e.message && e.message.includes("网络错误")) {
+                    errorMessage = `请求失败：网络连接问题或服务器无响应。`;
+                } else if (e.message && e.message.includes("超时")) {
+                    errorMessage = `请求失败：连接超时。`;
+                }
+                throw new Error(errorMessage); // 重新抛出错误，以便上层处理
+            }
+        },
+
+        listPublicShares: async function(page = 1) {
+            return this._call("GET", `${PUBLIC_REPO_API_PATHS.LIST_PUBLIC_SHARES}?page=${page}`);
+        },
+        searchDatabase: async function(rootFolderName, page = 1) {
+            return this._call("POST", PUBLIC_REPO_API_PATHS.SEARCH_DATABASE, { rootFolderName, page });
+        },
+        getContentTree: async function(params) { // params: { codeHash } or { shareCode }
+            return this._call("POST", PUBLIC_REPO_API_PATHS.GET_CONTENT_TREE, params);
+        },
+        getShareCode: async function(codeHash) {
+            return this._call("POST", PUBLIC_REPO_API_PATHS.GET_SHARE_CODE, { codeHash });
+        },
+        transformShareCodeTo123FastLinkJson: async function(shareCode, rootFolderName) {
+            return this._call("POST", PUBLIC_REPO_API_PATHS.TRANSFORM_TO_123FL, { shareCode, rootFolderName });
+        },
+        transform123FastLinkJsonToShareCode: async function(fastLinkJsonString, generateShortCode, shareProject) {
+            return this._call("POST", PUBLIC_REPO_API_PATHS.TRANSFORM_FROM_123FL, {
+                "123FastLinkJson": fastLinkJsonString,
+                generateShortCode,
+                shareProject
+            });
         }
     };
 
@@ -222,6 +302,7 @@
                 dropdown.style.display = dropdown.children.length > 0 && (document.activeElement === searchInput || dropdown.matches(':hover')) ? 'block' : 'none';
             } catch (e) {
                 console.error(`[${SCRIPT_NAME}] CRITICAL ERROR in renderFilterItems:`, e);
+                // Optionally re-throw or handle by showing a specific error to the user via uiManager
             }
         },
         attachFilterEvents: function() {
@@ -243,7 +324,7 @@
                     searchInput.addEventListener('keydown', (e) => {
                         if (e.key === 'Enter' && searchInput.value.trim() !== '') {
                             e.preventDefault();
-                            const term = searchInput.value.trim().toLowerCase().replace(/^\./, ''); // Remove leading dot
+                            const term = searchInput.value.trim().toLowerCase().replace(/^\\./, ''); // Remove leading dot
                             if (!term || !/^[a-z0-9_]+$/.test(term)) { // Basic validation for new extension
                                 uiManager.showAlert("无效的扩展名格式。请只使用字母、数字和下划线。", 1500);
                                 return;
@@ -286,400 +367,6 @@
             } catch (e) {
                 console.error(`[${SCRIPT_NAME}] CRITICAL ERROR in attachFilterEvents:`, e);
                 uiManager.showError("加载过滤器设置时发生严重错误，可能部分功能无法使用。请尝试刷新页面。", 5000);
-            }
-        }
-    };
-
-    // 新增：公共资源库管理器
-    const publicRepoManager = {
-        isLoading: false,
-        currentPage: 1,
-        isEndOfList: false,
-        currentSearchTerm: '',
-        currentContentTreeModal: null, // 用于存储目录树模态框的引用
-
-        // 统一的 API 调用函数
-        _callPublicApi: function(endpointPath, method = 'GET', body = null, queryParams = null) { // 注意：这里移除了 async，因为我们显式返回 Promise
-            return new Promise((resolve, reject) => {
-                let url = currentPublicRepoBaseUrl.endsWith('/') ? currentPublicRepoBaseUrl.slice(0, -1) : currentPublicRepoBaseUrl;
-                url += endpointPath;
-
-                if (queryParams) {
-                    url += '?' + new URLSearchParams(queryParams).toString();
-                }
-
-                const gmRequestOptions = {
-                    method: method.toUpperCase(), // 确保方法名大写
-                    url: url,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        // 根据需要，服务器可能期望其他头部，例如 'Accept': 'application/json'
-                    },
-                    timeout: 30000, // 设置一个合理的超时时间，例如 30000 毫秒 (30 秒)
-                    responseType: 'text', // 先获取文本，然后手动解析JSON，方便调试
-                    onload: function(response) {
-                        // HTTP 状态码 2xx 通常表示成功
-                        if (response.status >= 200 && response.status < 300) {
-                            try {
-                                const responseData = JSON.parse(response.responseText);
-                                resolve(responseData);
-                            } catch (e) {
-                                console.error(`[${SCRIPT_NAME}] 公共资源库 API 响应 JSON 解析错误 (${method} ${endpointPath}):`, e, "响应状态:", response.status, "响应文本:", response.responseText);
-                                reject(new Error(`API 响应 JSON 解析失败: ${e.message}. 响应文本: ${response.responseText.substring(0, 100)}...`));
-                            }
-                        } else {
-                            let errorMsg = `API 请求失败: ${response.status} ${response.statusText}`;
-                            try {
-                                // 尝试解析错误响应体，如果它也是JSON格式
-                                const errorData = JSON.parse(response.responseText);
-                                errorMsg += ` - ${errorData.message || JSON.stringify(errorData)}`;
-                            } catch (e) {
-                                 // 如果错误响应体不是JSON，或解析失败，则附加原始文本
-                                 errorMsg += ` - 原始响应: ${response.responseText.substring(0, 200)}...`;
-                            }
-                            console.error(`[${SCRIPT_NAME}] 公共资源库 API 请求返回非 2xx 状态 (${method} ${endpointPath}):`, errorMsg, "完整响应详情:", response);
-                            reject(new Error(errorMsg));
-                        }
-                    },
-                    onerror: function(response) {
-                        console.error(`[${SCRIPT_NAME}] 公共资源库 API 请求发生网络错误 (onerror) (${method} ${endpointPath}):`, response);
-                        reject(new Error(`API 请求网络错误: ${response.statusText || '未知网络错误 (onerror)'}. 检查控制台中的GM_xmlhttpRequest详情。`));
-                    },
-                    ontimeout: function() {
-                        console.error(`[${SCRIPT_NAME}] 公共资源库 API 请求超时 (${method} ${endpointPath})`);
-                        reject(new Error('API 请求超时'));
-                    },
-                    onabort: function() {
-                        console.error(`[${SCRIPT_NAME}] 公共资源库 API 请求已中止 (${method} ${endpointPath})`);
-                        reject(new Error('API 请求已中止'));
-                    }
-                };
-
-                // 对于 POST, PUT, PATCH 等方法，将请求体作为 data 属性传递
-                if (body && (method.toUpperCase() === 'POST' || method.toUpperCase() === 'PUT' || method.toUpperCase() === 'PATCH')) {
-                    gmRequestOptions.data = JSON.stringify(body);
-                }
-
-                // 打印将要发送的请求信息，便于调试
-                // console.log(`[${SCRIPT_NAME}] 发起 GM_xmlhttpRequest:`, gmRequestOptions);
-
-                try {
-                    GM_xmlhttpRequest(gmRequestOptions);
-                } catch (e) {
-                    // GM_xmlhttpRequest 本身调用失败（这很少见，除非 Tampermonkey 环境有问题）
-                    console.error(`[${SCRIPT_NAME}] GM_xmlhttpRequest 调用本身失败 (${method} ${endpointPath}):`, e);
-                    reject(new Error(`GM_xmlhttpRequest 启动失败: ${e.message}`));
-                }
-            });
-        },
-
-        loadShares: async function(page = 1, searchTerm = '', append = false) {
-            if (this.isLoading) return;
-            this.isLoading = true;
-            if (!append) { // 新的加载（非追加）
-                this.currentPage = 1;
-                this.isEndOfList = false;
-                this.currentSearchTerm = searchTerm;
-                const listDiv = document.getElementById('fl-public-repo-list');
-                if (listDiv) listDiv.innerHTML = '<p style="text-align:center; color:#888;">正在加载...</p>';
-            } else { // 追加加载
-                 const listDiv = document.getElementById('fl-public-repo-list');
-                 if (listDiv) {
-                    let loadingIndicator = listDiv.querySelector('.loading-indicator');
-                    if (!loadingIndicator) {
-                        loadingIndicator = document.createElement('p');
-                        loadingIndicator.className = 'loading-indicator';
-                        loadingIndicator.style.textAlign = 'center';
-                        loadingIndicator.style.color = '#888';
-                        loadingIndicator.textContent = '正在加载更多...';
-                        listDiv.appendChild(loadingIndicator);
-                    }
-                 }
-            }
-
-            try {
-                let data;
-                if (this.currentSearchTerm) {
-                    data = await this._callPublicApi(PUBLIC_REPO_API_PATHS.SEARCH_DATABASE, 'POST', { rootFolderName: this.currentSearchTerm, page: page });
-                } else {
-                    data = await this._callPublicApi(PUBLIC_REPO_API_PATHS.LIST_PUBLIC_SHARES, 'GET', null, { page: page });
-                }
-
-                const listDiv = document.getElementById('fl-public-repo-list');
-                const loadingIndicator = listDiv ? listDiv.querySelector('.loading-indicator') : null;
-                if (loadingIndicator) loadingIndicator.remove();
-
-                if (data.success && data.files) {
-                    if (!append && listDiv) listDiv.innerHTML = ''; // 清空旧内容
-                    this.renderShares(data.files);
-                    this.currentPage = page;
-                    this.isEndOfList = data.end;
-                    if (data.files.length === 0 && page === 1 && listDiv) {
-                        listDiv.innerHTML = `<p style="text-align:center; color:#888;">${this.currentSearchTerm ? '没有找到匹配的分享。' : '公共资源库为空。'}</p>`;
-                    }
-                     if (this.isEndOfList && page > 1 && listDiv) {
-                         const endMsg = document.createElement('p');
-                         endMsg.style.textAlign = 'center';
-                         endMsg.style.color = '#888';
-                         endMsg.textContent = '已到达列表底部。';
-                         listDiv.appendChild(endMsg);
-                     }
-                } else {
-                    if (listDiv) {
-                         if (!append)listDiv.innerHTML = `<p style="text-align:center; color:red;">加载分享失败: ${data.message || '未知错误'}</p>`;
-                         else uiManager.showAlert(`加载更多分享失败: ${data.message || '未知错误'}`, 2000);
-                    }
-                    this.isEndOfList = true; // 发生错误时也认为结束，防止无限重试
-                }
-            } catch (error) {
-                 const listDiv = document.getElementById('fl-public-repo-list');
-                 const loadingIndicator = listDiv ? listDiv.querySelector('.loading-indicator') : null;
-                 if (loadingIndicator) loadingIndicator.remove();
-                 if (listDiv) {
-                     if(!append) listDiv.innerHTML = `<p style="text-align:center; color:red;">加载分享时发生网络错误: ${error.message}</p>`;
-                     else uiManager.showAlert(`加载更多分享时发生网络错误: ${error.message}`, 2000);
-                 }
-                 this.isEndOfList = true;
-            } finally {
-                this.isLoading = false;
-            }
-        },
-
-        renderShares: function(shares) {
-            const listDiv = document.getElementById('fl-public-repo-list');
-            if (!listDiv) return;
-
-            shares.forEach(share => {
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'fl-public-repo-item';
-                itemDiv.style.borderBottom = '1px solid #eee';
-                itemDiv.style.padding = '10px 0';
-                itemDiv.style.display = 'flex';
-                itemDiv.style.justifyContent = 'space-between';
-                itemDiv.style.alignItems = 'center';
-
-                const infoDiv = document.createElement('div');
-                infoDiv.style.flexGrow = '1';
-
-                const nameP = document.createElement('p');
-                nameP.textContent = share.name;
-                nameP.style.fontWeight = 'bold';
-                nameP.style.margin = '0 0 5px 0';
-                nameP.style.cursor = 'pointer'; // 提示可以点击选择
-                nameP.title = `点击选择此资源: ${share.name}`;
-                nameP.addEventListener('click', () => {
-                    // Bug Fix 2：移除其他项目的激活动状态 (开始)
-                    const allRepoItems = listDiv.querySelectorAll('.fl-public-repo-item.active');
-                    allRepoItems.forEach(activeItem => {
-                        if (activeItem !== itemDiv) { // 确保不是当前点击的项本身
-                            activeItem.classList.remove('active');
-                        }
-                    });
-                    // Bug Fix 2：移除其他项目的激活动状态 (结束)
-
-                    itemDiv.classList.add('active'); // 标记为选中
-
-                    const modal = uiManager.getModalElement();
-                    if(modal){
-                        const hiddenCodeHash = modal.querySelector('#fl-public-repo-selected-codehash');
-                        const hiddenName= modal.querySelector('#fl-public-repo-selected-name');
-                        const importBtn = modal.querySelector('#fl-public-repo-import-btn');
-
-                        if(hiddenCodeHash) {
-                            hiddenCodeHash.value = share.codeHash;
-                            console.log(`[${SCRIPT_NAME}] [renderShares] Set selected codeHash: ${share.codeHash}`);
-                        } else {
-                            console.warn(`[${SCRIPT_NAME}] [renderShares] hiddenCodeHash element not found!`);
-                        }
-                        if(hiddenName) {
-                            hiddenName.value = share.name;
-                            console.log(`[${SCRIPT_NAME}] [renderShares] Set selected name: ${share.name}`);
-                        } else {
-                            console.warn(`[${SCRIPT_NAME}] [renderShares] hiddenName element not found!`);
-                        }
-
-                        if(importBtn) {
-                            if (share.codeHash) { // 仅当codeHash有效时才启用按钮
-                                importBtn.disabled = false;
-                                console.log(`[${SCRIPT_NAME}] [renderShares] Import button enabled.`);
-                            } else {
-                                importBtn.disabled = true;
-                                console.warn(`[${SCRIPT_NAME}] [renderShares] Share codeHash is empty, import button kept disabled.`);
-                            }
-                        } else {
-                            console.warn(`[${SCRIPT_NAME}] [renderShares] Import button not found!`);
-                        }
-                    } else {
-                        console.warn(`[${SCRIPT_NAME}] [renderShares] Modal element not found when trying to set selected share!`);
-                    }
-                    // Bug Fix 1：移除了这里的 uiManager.showAlert( ... )
-                });
-
-                const timeP = document.createElement('p');
-                timeP.textContent = `更新时间: ${new Date(share.timestamp).toLocaleString()}`;
-                timeP.style.fontSize = '0.9em';
-                timeP.style.color = '#666';
-                timeP.style.margin = '0';
-
-                infoDiv.appendChild(nameP);
-                infoDiv.appendChild(timeP);
-
-                const viewTreeBtn = document.createElement('button');
-                viewTreeBtn.innerHTML = '🔍';
-                viewTreeBtn.className = 'filter-btn'; // 复用样式
-                viewTreeBtn.style.padding = '5px 8px';
-                viewTreeBtn.style.marginLeft = '10px';
-                viewTreeBtn.title = "查看目录结构";
-                viewTreeBtn.onclick = async () => {
-                    console.log(`[${SCRIPT_NAME}] [viewTreeBtn.onclick] Clicked for share: ${share.name}, codeHash: ${share.codeHash}`);
-                    // 显示加载提示模态框
-                    uiManager.showModal("⏳ 正在加载目录树...", "", "info_modal_only_content", false);
-                    try {
-                        const treeData = await this._callPublicApi(PUBLIC_REPO_API_PATHS.GET_CONTENT_TREE, 'POST', { codeHash: share.codeHash });
-                        console.log(`[${SCRIPT_NAME}] [viewTreeBtn.onclick] API response for GET_CONTENT_TREE:`, JSON.parse(JSON.stringify(treeData))); // 打印API原始响应
-
-                        // 关闭加载提示模态框 (保留，因为它只关闭 info_modal_only_content 类型)
-                        uiManager.hideModal();
-                        // 等待上一个模态框关闭完成，避免竞争
-                        await new Promise(resolve => setTimeout(resolve, 100));
-
-                        if (treeData && typeof treeData.isFinish === 'boolean') { // 确保treeData基本结构存在
-                            if (treeData.isFinish && Array.isArray(treeData.message)) {
-                                let treeHtml = `<div style="text-align:left; max-height: 300px; overflow-y:auto; padding:5px; border:1px solid #ddd; background:#f9f9f9;">`;
-                                if (treeData.message.length > 0) {
-                                    // 添加一个容器div，用于后续识别和调整大小
-                                    treeHtml += treeData.message.map(line => {
-                                        if (typeof line !== 'string') {
-                                            console.warn(`[${SCRIPT_NAME}] [viewTreeBtn.onclick] Directory tree line is not a string:`, line);
-                                            return `<div style="white-space: pre; color: red;">[数据项非文本: ${escapeHtml(String(line))}]</div>`;
-                                        }
-                                        return `<div style="white-space: pre;">${escapeHtml(line)}</div>`;
-                                    }).join('');
-                                } else {
-                                    treeHtml += "<p style='text-align:center; color:#888;'>此分享内容目录为空或服务器未返回目录信息。</p>";
-                                    console.log(`[${SCRIPT_NAME}] [viewTreeBtn.onclick] treeData.message is an empty array for ${share.name}`);
-                                }
-                                treeHtml += `</div>`;
-                                console.log(`[${SCRIPT_NAME}] [viewTreeBtn.onclick] Generated treeHtml length: ${treeHtml.length} for ${share.name}`);
-
-                                // Bug Fix 3：调整目录树模态框宽度 (开始)
-                                // 调用 showModal 时传入一个特定的类名
-                                const treeModal = uiManager.showModal(
-                                    `📂 ${share.name} - 目录结构`,
-                                    treeHtml,
-                                    "info", // 目录树属于 info 类型
-                                    true // 目录树可以关闭
-                                );
-                                // showModal 返回模态框元素，我们可以直接给它添加类
-                                if (treeModal) {
-                                    treeModal.classList.add('fl-tree-view-modal');
-                                }
-                                // Bug Fix 3：调整目录树模态框宽度 (结束)
-
-                            } else {
-                                const errorDetail = `isFinish: ${treeData.isFinish}, message type: ${typeof treeData.message}${Array.isArray(treeData.message) ? `, message length: ${treeData.message.length}` : ''}, message content: ${JSON.stringify(treeData.message, null, 2).substring(0, 200)}...`;
-                                console.error(`[${SCRIPT_NAME}] [viewTreeBtn.onclick] 获取目录树失败或数据格式无效 for ${share.name}:`, errorDetail, "Full treeData:", treeData);
-                                // 仍然需要关闭加载提示模态框，如果它还在
-                                if(uiManager.getModalElement() && uiManager.getModalElement().querySelector('.fastlink-modal-title') && uiManager.getModalElement().querySelector('.fastlink-modal-title').textContent.startsWith("⏳")){
-                                   uiManager.hideModal();
-                                }
-                                uiManager.showError(`获取目录树失败: ${treeData.message || '服务器返回数据格式无效或操作未成功完成。详情: ' + errorDetail}`);
-                            }
-                        } else {
-                             // treeData 本身就是 null 或者没有 isFinish 属性
-                            console.error(`[${SCRIPT_NAME}] [viewTreeBtn.onclick] API response for GET_CONTENT_TREE is malformed or null for ${share.name}:`, treeData);
-                            // 仍然需要关闭加载提示模态框，如果它还在
-                            if(uiManager.getModalElement() && uiManager.getModalElement().querySelector('.fastlink-modal-title') && uiManager.getModalElement().querySelector('.fastlink-modal-title').textContent.startsWith("⏳")){
-                               uiManager.hideModal();
-                            }
-                            uiManager.showError(`获取目录树失败: 服务器响应无效或为空。`);
-                        }
-
-                    } catch (error) {
-                        console.error(`[${SCRIPT_NAME}] [viewTreeBtn.onclick] CRITICAL ERROR while getting/rendering content tree for ${share.name}:`, error);
-                        // 确保加载提示被关闭
-                        if(uiManager.getModalElement() && uiManager.getModalElement().querySelector('.fastlink-modal-title') && uiManager.getModalElement().querySelector('.fastlink-modal-title').textContent.startsWith("⏳")){
-                           uiManager.hideModal();
-                           await new Promise(resolve => setTimeout(resolve, 100)); // 等待关闭
-                        }
-                        uiManager.showError(`获取目录树时发生错误: ${error.message}`);
-                    }
-                };
-                itemDiv.appendChild(infoDiv);
-                itemDiv.appendChild(viewTreeBtn);
-                listDiv.appendChild(itemDiv);
-            });
-        },
-
-        handleScroll: function(event) {
-            const listDiv = event.target;
-            if (listDiv.scrollTop + listDiv.clientHeight >= listDiv.scrollHeight - 100) { // 提前一点加载
-                if (!this.isLoading && !this.isEndOfList) {
-                    this.loadShares(this.currentPage + 1, this.currentSearchTerm, true);
-                }
-            }
-        },
-
-        importSelectedShare: async function(targetFolderPath = "") {
-            const modal = uiManager.getModalElement();
-            if(!modal) return;
-            const selectedCodeHashEl = modal.querySelector('#fl-public-repo-selected-codehash');
-            const selectedNameEl = modal.querySelector('#fl-public-repo-selected-name');
-            const importBtn = modal.querySelector('#fl-public-repo-import-btn');
-
-            if (!selectedCodeHashEl || !selectedCodeHashEl.value) {
-                uiManager.showAlert("请先从列表中选择一个资源。", 2000);
-                return;
-            }
-            const codeHash = selectedCodeHashEl.value;
-            const rootFolderName = selectedNameEl ? selectedNameEl.value : "导入的资源"; // fallback name
-
-            if(importBtn) importBtn.disabled = true;
-            uiManager.showModal("⏳ 正在处理导入...", "请稍候，正在准备导入数据...", "info_modal_only_content", false);
-
-            try {
-                // 1. 获取完整分享码
-                const shareCodeData = await this._callPublicApi(PUBLIC_REPO_API_PATHS.GET_SHARE_CODE, 'POST', { codeHash: codeHash });
-                if (!shareCodeData.isFinish || !shareCodeData.message) {
-                    throw new Error(`获取完整分享码失败: ${shareCodeData.message || '未知错误'}`);
-                }
-                const longShareCode = shareCodeData.message;
-
-                // 2. 转换为123FastLink JSON
-                const fastLinkJsonData = await this._callPublicApi(PUBLIC_REPO_API_PATHS.TRANSFORM_TO_123FASTLINK, 'POST', {
-                    shareCode: longShareCode,
-                    rootFolderName: rootFolderName // 使用列表中的分享名作为根目录名
-                });
-
-                if (!fastLinkJsonData.isFinish || !fastLinkJsonData.message || typeof fastLinkJsonData.message !== 'object') {
-                    throw new Error(`转换分享码为JSON失败: ${fastLinkJsonData.message || '未知错误或格式不正确'}`);
-                }
-                const jsonDataToImport = fastLinkJsonData.message;
-
-                // 关闭“处理中”的提示
-                 if(uiManager.getModalElement() && uiManager.getModalElement().querySelector('.fastlink-modal-title').textContent.startsWith("⏳")){
-                    uiManager.hideModal();
-                }
-                // 等待上一个模态框关闭完成
-                await new Promise(resolve => setTimeout(resolve, 100));
-
-                // 3. 使用脚本自带的JSON导入功能
-                // 确保目标文件夹路径的逻辑与现有转存功能一致
-                uiManager.showModal(`📥 从公共资源库导入: ${rootFolderName}`, `准备将 "${rootFolderName}" 导入到您的网盘。`, 'progress_stoppable', false); // 显示一个准备导入的界面
-
-                // 延迟以确保进度条UI渲染
-                await new Promise(resolve => setTimeout(resolve, 300));
-
-                await coreLogic.transferImportedJsonData(jsonDataToImport, targetFolderPath); // 假设 targetFolderPath 可以在这里传入，或者coreLogic内部有逻辑获取当前目录
-
-                if(importBtn) importBtn.disabled = false; // 无论成功失败，恢复按钮
-
-            } catch (error) {
-                 if(uiManager.getModalElement() && uiManager.getModalElement().querySelector('.fastlink-modal-title').textContent.startsWith("⏳")){
-                    uiManager.hideModal(); // 关闭加载中的提示
-                }
-                uiManager.showError(`从公共资源库导入失败: ${error.message}`);
-                if(importBtn) importBtn.disabled = false;
             }
         }
     };
@@ -729,11 +416,13 @@
     const processStateManager = {
         _userRequestedStop: false,
         _modalStopButtonId: 'fl-modal-stop-btn',
+        // Keep track of last known progress to update mini bar instantly if needed
         _lastProgressData: { processed: 0, total: 0, successes: 0, failures: 0, currentFileName: "", extraStatus: "" },
         reset: function() {
             this._userRequestedStop = false;
             const btn = document.getElementById(this._modalStopButtonId);
             if(btn){btn.textContent = "🛑 停止"; btn.disabled = false;}
+            // Reset mini progress title too
             if (uiManager.miniProgressElement) {
                 const miniTitle = uiManager.miniProgressElement.querySelector('.fastlink-mini-progress-title span');
                 if (miniTitle) miniTitle.textContent = "⚙️ 处理中...";
@@ -746,6 +435,7 @@
             const minimizeBtn = document.getElementById('fl-m-minimize');
             if(minimizeBtn) minimizeBtn.disabled = true;
             console.log(`[${SCRIPT_NAME}] User requested stop.`);
+            // Update mini progress title if active
             if (uiManager.isMiniProgressActive && uiManager.miniProgressElement) {
                 const miniTitle = uiManager.miniProgressElement.querySelector('.fastlink-mini-progress-title span');
                 if (miniTitle) miniTitle.textContent = "🛑 正在停止...";
@@ -753,7 +443,7 @@
         },
         isStopRequested: function() { return this._userRequestedStop; },
         getStopButtonId: function() { return this._modalStopButtonId; },
-        updateProgressUINow: function() {
+        updateProgressUINow: function() { // Added to directly call update with last known data
             this.updateProgressUI(
                 this._lastProgressData.processed,
                 this._lastProgressData.total,
@@ -764,6 +454,7 @@
             );
         },
         updateProgressUI: function(processed, total, successes, failures, currentFileName, extraStatus = "") {
+            // Store last data
             this._lastProgressData = { processed, total, successes, failures, currentFileName, extraStatus };
 
             const bar = document.querySelector('.fastlink-progress-bar');
@@ -779,6 +470,7 @@
             const extraEl = document.querySelector('.fastlink-status .extra-status-message');
             if (extraEl) { extraEl.textContent = extraStatus; extraEl.style.display = extraStatus ? 'block' : 'none';}
 
+            // Update mini progress bar if active
             if (uiManager.isMiniProgressActive && uiManager.miniProgressElement) {
                 const miniBar = uiManager.miniProgressElement.querySelector('.fastlink-mini-progress-bar');
                 if (miniBar) miniBar.style.width = `${total > 0 ? Math.round((processed / total) * 100) : 0}%`;
@@ -792,7 +484,7 @@
                 const miniTitle = uiManager.miniProgressElement.querySelector('.fastlink-mini-progress-title span');
                 if (miniTitle) {
                     if (this._userRequestedStop) {
-                        miniTitle.textContent = (processed < total && total > 0) ? "🛑 正在停止..." : "🛑 已停止";
+                        miniTitle.textContent = (processed < total) ? "🛑 正在停止..." : "🛑 已停止";
                     } else if (processed >= total && total > 0) {
                          miniTitle.textContent = "✅ 处理完成";
                     } else {
@@ -803,17 +495,17 @@
         },
         appendLogMessage: function(message, isError = false) {
             const logArea = document.querySelector('.fastlink-status');
-            // console.log(`[${SCRIPT_NAME}] appendLogMessage: 尝试记录: "${message}"`, "错误?", isError, "日志区域存在?", !!logArea);
+            console.log(`[${SCRIPT_NAME}] appendLogMessage: 尝试记录: "${message}"`, "错误?", isError, "日志区域存在?", !!logArea);
             if (logArea) {
                 const p = document.createElement('p');
                 p.className = isError ? 'error-message' : 'info-message';
-                p.innerHTML = message; // 使用 innerHTML 以支持可能的HTML标签
+                p.innerHTML = message; // 使用 innerHTML 以支持可能的 HTML 标签（如加粗）
                 const extraStatusSibling = logArea.querySelector('.extra-status-message');
                 if (extraStatusSibling) logArea.insertBefore(p, extraStatusSibling.nextSibling);
                 else logArea.appendChild(p);
                 logArea.scrollTop = logArea.scrollHeight;
             } else {
-                // console.error(`[${SCRIPT_NAME}] appendLogMessage: 日志区域 '.fastlink-status' 未找到! 无法记录: "${message}"`);
+                console.error(`[${SCRIPT_NAME}] appendLogMessage: 日志区域 '.fastlink-status' 未找到! 无法记录: "${message}"`);
             }
         }
     };
@@ -885,7 +577,7 @@
             let totalDiscoveredItemsForProgress = 0;
             let itemsProcessedForProgress = 0;
             let successes = 0, failures = 0;
-            let jsonDataForExport = null; // 声明在外部
+            let jsonDataForExport = null;
             const startTime = Date.now();
             let permanentlyFailedItemsFromFetcher = [];
 
@@ -894,7 +586,7 @@
                 <div class="fastlink-status"><p>🔍 正在分析项目...</p><p class="extra-status-message" style="color: #ff7f50; display: none;"></p></div>
                 <div class="fastlink-stats"><span class="success-count">✅ 成功：0</span><span class="failed-count">❌ 失败：0</span></div>
                 <div class="fastlink-current-file"><p class="file-name">准备开始...</p></div>`, 'progress_stoppable', false);
-            processStateManager.appendLogMessage("🚀 [LOG_TEST] _generateLinkProcess: 日志系统准备就绪。模态框已显示。");
+            processStateManager.appendLogMessage("🚀 [LOG_TEST] _generateLinkProcess: 日志系统准备就绪。模态框已显示。"); // Initial log test
 
             try {
                 const result = await itemFetcherAsyncFn(
@@ -908,11 +600,12 @@
                         processStateManager.updateProgressUI(itemsProcessedForProgress, totalDiscoveredItemsForProgress, successes, failures, progressUpdate.currentFile, progressUpdate.extraStatus);
                     }
                 );
+                // Ensure final counts are taken from the result of the fetcher
                 totalDiscoveredItemsForProgress = result.totalDiscoveredItemsForProgress;
                 itemsProcessedForProgress = result.itemsProcessedForProgress;
                 successes = result.successes;
                 failures = result.failures;
-                if (result.permanentlyFailedItems) permanentlyFailedItemsFromFetcher = result.permanentlyFailedItems;
+                if (result.permanentlyFailedItems) permanentlyFailedItemsFromFetcher = result.permanentlyFailedItems; // Get failed items
 
             } catch (e) {
                 if (e.message === "UserStopped") processStateManager.appendLogMessage("🛑 用户已停止操作。", true);
@@ -923,7 +616,7 @@
             const totalTime = Math.round((Date.now() - startTime) / 1000);
             let summary;
 
-            if (allFileEntriesData.length > 0 || permanentlyFailedItemsFromFetcher.length > 0) {
+            if (allFileEntriesData.length > 0 || permanentlyFailedItemsFromFetcher.length > 0) { // Consider failed items for showing results modal
                 let link = "";
                 const allPaths = allFileEntriesData.map(entry => entry.fullPath);
                 const commonPrefix = this._findLongestCommonPrefix(allPaths);
@@ -948,6 +641,7 @@
 
                 summary = `<div class="fastlink-result"><p>📄 已处理项目 (用于链接/JSON): ${allFileEntriesData.length} 个</p><p>✅ 成功获取链接信息: ${successes} 个</p><p>❌ 失败/跳过项目 (元数据提取阶段): ${failures} 个</p><p>📋 永久失败项目 (无法处理): ${permanentlyFailedItemsFromFetcher.length} 个</p><p>💾 已处理项目总大小: ${formattedTotalSize}</p><p>⏱️ 耗时: ${totalTime} 秒</p><textarea class="fastlink-link-text" readonly>${link}</textarea></div>`;
 
+                // Add failed items log if any
                 if (permanentlyFailedItemsFromFetcher.length > 0) {
                     summary += `<div id="fastlink-permanent-failures-log" style="display: block; margin-top: 10px; text-align: left; max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 5px; font-size: 0.85em;"><h4>永久失败项目 (${permanentlyFailedItemsFromFetcher.length}):</h4><div id="fastlink-failures-list">`;
                     permanentlyFailedItemsFromFetcher.forEach(pf => {
@@ -955,15 +649,15 @@
                     });
                     summary += `</div></div>`;
                 }
-                // 将 jsonDataForExport 传递给 showModal
+
                 uiManager.showModal(
-                    titleMessage,
+                    titleMessage, // Use the already determined titleMessage
                     summary,
                     'showLink',
-                    true,
+                    true, // Ensure closable is true for showLink type
                     link,
-                    jsonDataForExport, // 传递 jsonDataForExport
-                    permanentlyFailedItemsFromFetcher
+                    jsonDataForExport,
+                    permanentlyFailedItemsFromFetcher // Pass failed items to modal for potential button actions
                 );
                 return link;
             } else {
@@ -979,7 +673,9 @@
             if (!selectedItemIds.length) { uiManager.showAlert("请先勾选要分享的文件或文件夹。"); return ""; }
             let permanentlyFailedItems = [];
 
+            // Log selected items at the very beginning of the share link generation process
             console.log(`[${SCRIPT_NAME}] generateShareLink: 开始处理选中的ID:`, selectedItemIds);
+            // Use a timeout to ensure modal is ready for appendLogMessage
             setTimeout(() => {
                 processStateManager.appendLogMessage(`[generateShareLink] 检测到 ${selectedItemIds.length} 个选中的项目。`);
             }, 100);
@@ -1010,7 +706,7 @@
                             processStateManager.appendLogMessage(`📄 [PSI_FETCHED_DETAILS] ID: ${itemId}, FID: ${itemDetails.FileID}, Name: '${itemDetails.FileName}', Type: ${itemDetails.Type}, Size: ${itemDetails.Size}, Etag: ${itemDetails.Etag ? itemDetails.Etag.substring(0,10)+'...' : 'N/A'}`);
                         } catch (e) {
                             if (processStateManager.isStopRequested()) throw e;
-                            failureCount++; processedCount++;
+                            failureCount++; processedCount++; // Count as processed because we attempted
                             const errorMsg = `获取项目详情 '${baseItemNameForLog}' (ID: ${itemId}) 失败: ${e.message}`;
                             processStateManager.appendLogMessage(`❌ [PSI_FETCH_FAIL] ${errorMsg}`);
                             permanentlyFailedItems.push({ fileName: baseItemNameForLog, id: itemId, error: errorMsg });
@@ -1019,13 +715,14 @@
                         }
                     } else {
                          progressCb({ processed: processedCount, total: totalDiscovered, successCount, failureCount, currentFile: baseItemNameForLog, extraStatus: "处理预取信息..." });
+                         // Log details if pre-fetched, as they weren't logged by the block above
                          processStateManager.appendLogMessage(`📄 [PSI_USING_PREFETCHED_DETAILS] ID: ${itemId}, FID: ${itemDetails.FileID}, Name: '${itemDetails.FileName}', Type: ${itemDetails.Type}, Size: ${itemDetails.Size}, Etag: ${itemDetails.Etag ? itemDetails.Etag.substring(0,10)+'...' : 'N/A'}`);
                     }
 
                     processStateManager.appendLogMessage(`[PSI_PRE_TYPE_CHECK] ID: ${itemId}, FID: ${itemDetails.FileID}, Name: '${itemDetails.FileName}', Type: ${itemDetails.Type}, Size: ${itemDetails.Size}, Etag: ${itemDetails.Etag ? itemDetails.Etag.substring(0,10)+'...' : 'N/A'}`);
 
                     if (isNaN(itemDetails.FileID) && itemDetails.FileID !== 0) {
-                        failureCount++; processedCount++;
+                        failureCount++; processedCount++;  // Count as processed
                         const errorMsg = `项目 '${itemDetails.FileName || itemId}' (ID: ${itemId}) FileID无效 (${itemDetails.FileID})`;
                         processStateManager.appendLogMessage(`❌ [PSI_INVALID_FID] ${errorMsg}`);
                         permanentlyFailedItems.push({ fileName: itemDetails.FileName || String(itemId), id: String(itemId), error: errorMsg });
@@ -1037,6 +734,7 @@
                     const itemDisplayPath = `${currentRelativePath ? currentRelativePath + '/' : ''}${cleanName}`;
                     const formattedSize = formatBytes(Number(itemDetails.Size) || 0);
 
+                    // Increment processedCount if it hasn't been due to an early fetch/FID failure
                     let alreadyCountedInError = permanentlyFailedItems.some(f => f.id === String(itemId));
                     if (!alreadyCountedInError) {
                         processedCount++;
@@ -1052,13 +750,14 @@
                             processStateManager.appendLogMessage(`[PSI_PRE_FILTER_CHECK] cleanName: '${cleanName}', filterOnShareEnabled: ${filterManager.filterOnShareEnabled}`);
                             if (filterManager.shouldFilterFile(cleanName, true)) {
                                 processStateManager.appendLogMessage(`⏭️ [PSI_FILTERED] File '${itemDisplayPath}' (${formattedSize}) was excluded by filter.`);
+                                // Not added to permanentlyFailedItems as this is expected behavior if filtered.
                             } else {
                                 addDataCb({ etag: itemDetails.Etag, size: itemDetails.Size, fullPath: itemDisplayPath });
                                 successCount++;
                                 processStateManager.appendLogMessage(`✔️ [PSI_FILE_SUCCESS] Added file '${itemDisplayPath}' (${formattedSize}) to link.`);
                             }
                         } else {
-                            failureCount++;
+                            failureCount++; // This is a failure for link generation
                             let ed = (!itemDetails.Etag || String(itemDetails.Etag).length === 0) ? "缺少或空Etag" : "缺少大小";
                             const errorMsg = `File '${itemDisplayPath}' (${formattedSize}) (ID: ${itemId})元数据不完整: ${ed}. Etag: '${itemDetails.Etag}', Size: ${itemDetails.Size}`;
                             processStateManager.appendLogMessage(`❌ [PSI_FILE_META_FAIL] ${errorMsg}`);
@@ -1075,6 +774,7 @@
                             if (processStateManager.isStopRequested()) throw new Error("UserStopped");
                         } catch (e) {
                             if (processStateManager.isStopRequested()) throw e;
+                            // This folder itself has an issue if listing fails.
                             failureCount++;
                             const errorMsg = `处理文件夹 '${itemDisplayPath}' (ID: ${itemId}) 内容列出失败: ${e.message}`;
                             processStateManager.appendLogMessage(`❌ [PSI_LIST_DIR_FAIL] ${errorMsg}`);
@@ -1097,7 +797,7 @@
                             await new Promise(r => setTimeout(r, RETRY_AND_DELAY_CONFIG.PROACTIVE_DELAY_MS / 2));
                         }
                     } else { // Unknown type
-                        failureCount++;
+                        failureCount++; // Count unknown types as failures for link generation
                         const unknownTypeMsg = `项目 '${itemDisplayPath}' (${formattedSize}) (ID: ${itemId}) 是未知类型 (${itemDetails.Type})，已跳过。`;
                         processStateManager.appendLogMessage(`⚠️ [PSI_UNKNOWN_TYPE] ${unknownTypeMsg}`);
                         permanentlyFailedItems.push({ fileName: itemDisplayPath, id: String(itemDetails.FileID), error: unknownTypeMsg, type: itemDetails.Type });
@@ -1108,6 +808,7 @@
                 progressCb({ processed: 0, total: totalDiscovered, successCount: 0, failureCount: 0, currentFile: "准备开始..." });
                 for (let i = 0; i < selectedItemIds.length; i++) {
                     if (processStateManager.isStopRequested()) break;
+                    // Log before processing each top-level item
                     processStateManager.appendLogMessage(`[generateShareLink] 开始处理顶层项目 ${i + 1}/${selectedItemIds.length}, ID: ${selectedItemIds[i]}`);
                     await processSingleItem(selectedItemIds[i], "");
                 }
@@ -1116,7 +817,7 @@
                     itemsProcessedForProgress: processedCount,
                     successes: successCount,
                     failures: failureCount,
-                    permanentlyFailedItems: permanentlyFailedItems
+                    permanentlyFailedItems: permanentlyFailedItems // Return failed items
                 };
             }, "生成秒传链接");
         },
@@ -1160,7 +861,7 @@
                         const itemDisplayPath = `${currentRelativePath ? currentRelativePath + '/' : ''}${cleanName}`;
                         const formattedSize = formatBytes(Number(item.Size) || 0);
 
-                        let itemProcessedThisLoop = false;
+                        let itemProcessedThisLoop = false; // Flag to ensure processedCount is incremented correctly for files
 
                         if (item.Type === 0) { // File
                             progressCb({ processed: processedCount + (itemProcessedThisLoop ? 0 : 1), total: totalDiscovered, successCount, failureCount, currentFile: `${itemDisplayPath} (${formattedSize})` });
@@ -1170,7 +871,7 @@
                             } else { failureCount++; let ed = !item.Etag ? "缺少Etag" : "缺少大小"; processStateManager.appendLogMessage(`❌ 分享文件 "${itemDisplayPath}" (${formattedSize}) ${ed}`, true); }
                             if(!itemProcessedThisLoop) { processedCount++; itemProcessedThisLoop = true;}
                         } else if (item.Type === 1) { // Folder
-                             progressCb({ processed: processedCount, total: totalDiscovered, successCount, failureCount, currentFile: itemDisplayPath });
+                             progressCb({ processed: processedCount, total: totalDiscovered, successCount, failureCount, currentFile: itemDisplayPath }); // Update UI for folder before recursive call
                             markFolderCb(true);
                             processStateManager.appendLogMessage(`📁 扫描分享文件夹: ${itemDisplayPath}`);
                             await _fetchSharedItemsRecursive(item.FileID, itemDisplayPath);
@@ -1212,6 +913,7 @@
             let userSpecifiedFolderPath = targetFolderPath ? targetFolderPath.trim() : ""; let finalRootDirId = rootDirId;
 
             const initialModalTitle = `⚙️ ${operationTitle}状态 (${filesToProcess.length} 项)`;
+            // Initial modal content with placeholder for folder selector (might be removed if no folder path input)
             let modalContent = `
                 <div class="fastlink-progress-container"><div class="fastlink-progress-bar" style="width: 0%"></div></div>
                 <div class="fastlink-status">
@@ -1222,6 +924,9 @@
                 <div class="fastlink-current-file"><p class="file-name">准备开始...</p></div>
                 <div id="fastlink-permanent-failures-log" style="display: none; margin-top: 10px; text-align: left; max-height: 100px; overflow-y: auto; border: 1px solid #ddd; padding: 5px; font-size: 0.85em;"><h4>永久失败项目:</h4><div id="fastlink-failures-list"></div></div>`;
 
+            // Folder selector is only part of the 'inputLink' or 'inputPublicShare' initial modal, not the progress modal directly *during* transfer.
+            // However, the logic to create userSpecifiedFolderPath runs *before* the loop.
+            // For this modal, we don't need to show the input again.
             uiManager.showModal(initialModalTitle, modalContent, 'progress_stoppable', false);
 
             let successes = 0, failures = 0; const folderCache = {}; const startTime = Date.now();
@@ -1229,11 +934,11 @@
             if (userSpecifiedFolderPath) {
                 try {
                     processStateManager.updateProgressUI(0, filesToProcess.length, successes, failures, `创建目标文件夹: ${userSpecifiedFolderPath}`, "");
-                    const dirContents = await apiHelper.listDirectoryContents(rootDirId, 500);
+                    const dirContents = await apiHelper.listDirectoryContents(rootDirId, 500); // Check against current dir
                     if (processStateManager.isStopRequested()) { uiManager.showAlert("操作已取消"); return; }
 
                     const pathParts = userSpecifiedFolderPath.split('/');
-                    let parentIdForUserPath = rootDirId;
+                    let parentIdForUserPath = rootDirId; // User path is relative to current dir
                     let currentPathForUser = "";
 
                     for (let i = 0; i < pathParts.length; i++) {
@@ -1241,7 +946,7 @@
                         currentPathForUser = currentPathForUser ? `${currentPathForUser}/${folderName}` : folderName;
                         if (folderCache[currentPathForUser]) { parentIdForUserPath = folderCache[currentPathForUser]; continue; }
 
-                        const existingFolder = dirContents.find(item => item.Type === 1 && item.FileName === folderName && item.ParentFileID == parentIdForUserPath);
+                        const existingFolder = dirContents.find(item => item.Type === 1 && item.FileName === folderName && item.ParentFileID == parentIdForUserPath); // More specific check
                         if (existingFolder && !isNaN(existingFolder.FileID)) {
                             parentIdForUserPath = existingFolder.FileID;
                             processStateManager.appendLogMessage(`ℹ️ 文件夹已存在: ${folderName} (ID: ${parentIdForUserPath})`);
@@ -1260,7 +965,7 @@
                     processStateManager.appendLogMessage(`❌ 创建目标文件夹 "${userSpecifiedFolderPath}" 失败: ${error.message}`, true);
                     console.error(`[${SCRIPT_NAME}] 创建目标文件夹错误:`, error);
                     uiManager.showAlert(`创建目标文件夹失败: ${error.message}，将尝试转存到当前目录 (ID: ${rootDirId})`);
-                    finalRootDirId = rootDirId;
+                    finalRootDirId = rootDirId; // Fallback
                 }
             }
 
@@ -1274,7 +979,7 @@
                 if (filterManager.shouldFilterFile(file.fileName, false)) { processStateManager.appendLogMessage(`⏭️ 已过滤: ${file.fileName} (${formattedFileSize})`); processStateManager.updateProgressUI(i + 1, filesToProcess.length, successes, failures, `已过滤: ${file.fileName} (${formattedFileSize})`); continue; }
 
                 processStateManager.updateProgressUI(i, filesToProcess.length, successes, failures, `${file.fileName} (${formattedFileSize})`, "");
-                let effectiveParentId = finalRootDirId;
+                let effectiveParentId = finalRootDirId; // Start with the (potentially user-specified) target folder
                 let actualFileName = file.fileName;
 
                 try {
@@ -1283,7 +988,7 @@
                         actualFileName = pathParts.pop();
                         if (!actualFileName && pathParts.length > 0 && file.fileName.endsWith('/')) { processStateManager.appendLogMessage(`⚠️ 文件路径 "${file.fileName}" (${formattedFileSize}) 可能表示目录，跳过。`, true); failures++; permanentlyFailedItems.push({ ...file, error: "路径表示目录" }); continue; }
 
-                        let parentIdForLinkPath = finalRootDirId;
+                        let parentIdForLinkPath = finalRootDirId; // **FIXED**: Link paths are relative to finalRootDirId
                         let currentCumulativeLinkPath = "";
 
                         for (let j = 0; j < pathParts.length; j++) {
@@ -1292,7 +997,7 @@
                             currentCumulativeLinkPath = j === 0 ? part : `${currentCumulativeLinkPath}/${part}`;
                             processStateManager.updateProgressUI(i, filesToProcess.length, successes, failures, `${file.fileName} (${formattedFileSize})`, `检查/创建路径: ${currentCumulativeLinkPath}`);
 
-                            const cacheKeyForLinkPath = `link:${currentCumulativeLinkPath}`;
+                            const cacheKeyForLinkPath = `link:${currentCumulativeLinkPath}`; // Namespace cache for link paths
                             if (folderCache[cacheKeyForLinkPath]) {
                                 parentIdForLinkPath = folderCache[cacheKeyForLinkPath];
                             } else {
@@ -1324,8 +1029,7 @@
                 } catch (e) { if (processStateManager.isStopRequested()) break; failures++; processStateManager.appendLogMessage(`❌ 文件 "${actualFileName}" (${formattedFileSize}) (原始: ${originalFileNameForLog}) 失败: ${e.message}`, true); permanentlyFailedItems.push({ ...file, fileName: originalFileNameForLog, error: e.message }); processStateManager.updateProgressUI(i + 1, filesToProcess.length, successes, failures, `${actualFileName} (${formattedFileSize})`, "操作失败"); }
                 await new Promise(r => setTimeout(r, RETRY_AND_DELAY_CONFIG.PROACTIVE_DELAY_MS));
             }
-            const finalProcessedCount = processStateManager.isStopRequested() ? successes + failures : filesToProcess.length;
-            processStateManager.updateProgressUI(finalProcessedCount, filesToProcess.length, successes, failures, "处理完成", "");
+            processStateManager.updateProgressUI(filesToProcess.length, filesToProcess.length, successes, failures, "处理完成", "");
             const totalTime = Math.round((Date.now() - startTime) / 1000); let resultEmoji = successes > 0 && permanentlyFailedItems.length === 0 ? '🎉' : (successes > 0 ? '🎯' : '😢'); if (processStateManager.isStopRequested()) resultEmoji = '🔴';
             let finalUserMessage = processStateManager.isStopRequested() ? "操作已由用户停止" : `${operationTitle}完成`; if (!processStateManager.isStopRequested() && permanentlyFailedItems.length > 0) finalUserMessage = `${operationTitle}部分完成或预处理失败，共 ${permanentlyFailedItems.length} 个文件有问题。`;
             const formattedTotalSuccessfullyTransferredSize = formatBytes(totalSuccessfullyTransferredSize);
@@ -1333,7 +1037,7 @@
             uiManager.updateModalContent(summary);
             if (permanentlyFailedItems.length > 0 && !processStateManager.isStopRequested()) {
                 const failuresLogDiv = document.getElementById('fastlink-failures-list'); const permanentFailuresDiv = document.getElementById('fastlink-permanent-failures-log');
-                if (failuresLogDiv && permanentFailuresDiv) { failuresLogDiv.innerHTML = ''; permanentlyFailedItems.forEach(pf => { const p = document.createElement('p'); p.style.margin = '2px 0'; p.innerHTML = `📄 <span style="font-weight:bold;">${escapeHtml(pf.fileName)}</span>: <span style="color:red;">${escapeHtml(pf.error || '未知错误')}</span>`; failuresLogDiv.appendChild(p); }); permanentFailuresDiv.style.display = 'block'; }
+                if (failuresLogDiv && permanentFailuresDiv) { failuresLogDiv.innerHTML = ''; permanentlyFailedItems.forEach(pf => { const p = document.createElement('p'); p.style.margin = '2px 0'; p.innerHTML = `📄 <span style="font-weight:bold;">${pf.fileName}</span>: <span style="color:red;">${pf.error || '未知错误'}</span>`; failuresLogDiv.appendChild(p); }); permanentFailuresDiv.style.display = 'block'; }
                 const modalInstance = uiManager.getModalElement();
                 if (modalInstance) {
                     let buttonsDiv = modalInstance.querySelector('.fastlink-modal-buttons'); if(!buttonsDiv) { buttonsDiv = document.createElement('div'); buttonsDiv.className = 'fastlink-modal-buttons'; modalInstance.querySelector(`#${uiManager.MODAL_CONTENT_ID}`)?.appendChild(buttonsDiv); } buttonsDiv.innerHTML = '';
@@ -1341,9 +1045,9 @@
                     const copyLogBtn = document.createElement('button'); copyLogBtn.id = 'fl-m-copy-failed-log'; copyLogBtn.className = 'copy-btn'; copyLogBtn.style.marginLeft = '10px'; copyLogBtn.textContent = '复制问题日志'; copyLogBtn.onclick = () => { const logText = permanentlyFailedItems.map(pf => `文件: ${pf.fileName || (pf.originalEntry&&pf.originalEntry.path)||'未知路径'}\n${(pf.originalEntry&&pf.originalEntry.etag)?('原始ETag: '+pf.originalEntry.etag+'\n'):(pf.etag?'处理后ETag: '+pf.etag+'\n':'')}${(pf.originalEntry&&pf.originalEntry.size)?('大小: '+pf.originalEntry.size+'\n'):(pf.size?'大小: '+pf.size+'\n':'')}错误: ${pf.error||'未知错误'}`).join('\n\n'); GM_setClipboard(logText); uiManager.showAlert("问题文件日志已复制到剪贴板！", 1500); }; buttonsDiv.appendChild(copyLogBtn);
                     const closeBtnModal = document.createElement('button'); closeBtnModal.id = 'fl-m-final-close'; closeBtnModal.className = 'cancel-btn'; closeBtnModal.textContent = '关闭'; closeBtnModal.style.marginLeft = '10px'; closeBtnModal.onclick = () => uiManager.hideModal(); buttonsDiv.appendChild(closeBtnModal);
                 }
-                 uiManager.enableModalCloseButton(false);
+                 uiManager.enableModalCloseButton(false); // Use custom close button
             } else {
-                 uiManager.enableModalCloseButton(true);
+                 uiManager.enableModalCloseButton(true); // Enable original close button
             }
         }
     };
@@ -1351,24 +1055,31 @@
     const uiManager = {
         modalElement: null, dropdownMenuElement: null, STYLE_ID: 'fastlink-dynamic-styles', MODAL_CONTENT_ID: 'fastlink-modal-content-area',
         activeModalOperationType: null, modalHideCallback: null,
-        miniProgressElement: null, isMiniProgressActive: false,
+        miniProgressElement: null, isMiniProgressActive: false, // Added for mini progress
+
+        // 公共资源库浏览器的状态
+        publicRepoState: {
+            currentPage: 1,
+            isLoading: false,
+            isEndOfList: false,
+            currentSearchTerm: '',
+            currentSearchPage: 1,
+            isSearching: false,
+            isSearchEndOfList: false,
+            selectedShareForImport: null, // { codeHash, name }
+        },
 
         _downloadToFile: function(content, filename, contentType) { const a = document.createElement('a'); const blob = new Blob([content], { type: contentType }); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href); },
         applyStyles: function() {
             if (document.getElementById(this.STYLE_ID)) return;
             let css = `
                 .fastlink-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background-color:white;padding:20px;border-radius:8px;box-shadow:0 0 15px rgba(0,0,0,.3);z-index:10001;width:420px;max-height:90vh;display:flex;flex-direction:column;text-align:center}
-                /* 新增：公共资源库模态框可能需要更宽 */
-                .fastlink-modal.public-repo-dialog { width: 550px; max-width: 90vw; }
-                /* Bug Fix 3: 目录树模态框宽度调整 (开始) */
-                .fastlink-modal.fl-tree-view-modal { width: 650px; max-width: 95vw; } /* 加宽目录树模态框 */
-                /* Bug Fix 3: 目录树模态框宽度调整 (结束) */
                 .fastlink-modal-title{font-size:18px;font-weight:700;margin-bottom:15px}
-                .fastlink-modal-content{flex:1;overflow-y:auto;max-height:calc(90vh - 140px); text-align:left;} /* 默认左对齐，方便列表 */
+                .fastlink-modal-content{flex:1;overflow-y:auto;max-height:calc(90vh - 140px);}
                 .fastlink-modal-content textarea,.fastlink-modal-content div[contenteditable]{width:100%;min-height:80px;max-height:200px;overflow-y:auto;margin-bottom:15px;padding:8px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;white-space:pre-wrap;word-wrap:break-word}
                 .fastlink-modal-content .fastlink-link-text{width:calc(100% - 16px)!important;min-height:80px;margin-bottom:0!important}
-                .fastlink-modal-input{width:calc(100% - 16px);padding:8px;margin-bottom:10px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;}
-                .fastlink-modal-buttons{margin-top:auto; padding-top:15px; border-top: 1px solid #eee;} /* 确保按钮总在底部 */
+                .fastlink-modal-input{width:calc(100% - 16px);padding:8px;margin-bottom:10px;border:1px solid #ccc;border-radius:4px}
+                .fastlink-modal-buttons{margin-top:15px;}
                 .fastlink-modal-buttons button{padding:8px 15px;margin:0 5px;border-radius:4px;cursor:pointer;border:1px solid transparent;font-size:14px}
                 .fastlink-modal-buttons .confirm-btn{background-color:#28a745;color:#fff}
                 .fastlink-modal-buttons .confirm-btn:disabled{background-color:#94d3a2;cursor:not-allowed}
@@ -1388,10 +1099,16 @@
                 .fastlink-current-file{background-color:#f9f9f9;padding:5px;border-radius:4px;margin:5px 0;min-height:1.5em;word-break:break-all}
                 .error-message{color:#d9534f;font-size:.9em}
                 .info-message{color:#28a745;font-size:.9em}
+                #fastlink-dropdown-menu-container{position:absolute;background:#fff;border:1px solid #ccc;padding:2px;box-shadow:0 4px 6px rgba(0,0,0,.1);margin-top:5px;z-index:10002 !important;max-height:calc(100vh - 80px);overflow-y:auto;top:100%;left:0;}
                 .fastlink-result{text-align:center}
                 .fastlink-result h3{font-size:18px;margin:5px 0 15px}
                 .fastlink-result p{margin:8px 0}
-                #fastlink-dropdown-menu-container{position:absolute;background:#fff;border:1px solid #ccc;padding:2px;box-shadow:0 4px 6px rgba(0,0,0,.1);margin-top:5px;z-index:10002 !important;max-height:calc(100vh - 80px);overflow-y:auto;top:100%;left:0;}
+                .fastlink-result .submit-to-public-repo-container { margin-top: 15px; padding-top: 10px; border-top: 1px solid #eee; text-align: left; }
+                .fastlink-result .submit-to-public-repo-container label { display: block; margin-bottom: 5px; font-weight: bold; }
+                .fastlink-result .submit-to-public-repo-container input[type="text"] { width: calc(100% - 20px); padding: 8px; margin-bottom: 5px; border: 1px solid #ccc; border-radius: 4px; }
+                .fastlink-result .submit-to-public-repo-container p.hint { font-size: 0.85em; color: #666; margin-bottom: 10px; }
+                .fastlink-result .submit-to-public-repo-container button { display: block; width: 100%; background-color: #5cb85c; color: white; }
+
                 .fastlink-drag-drop-area{border:2px dashed #ccc;padding:10px;transition: border-color .3s ease;}
                 .fastlink-drag-drop-area.drag-over-active{border-color:#007bff; background-color: #f8f9fa;}
                 .filter-controls{display:flex;justify-content:space-between;margin-bottom:15px;}
@@ -1432,20 +1149,26 @@
                 .fastlink-mini-progress-status{font-size:0.9em;color:#333;}
                 .fastlink-mini-progress-restore-btn{font-size:0.8em;padding:3px 8px;background-color:#6c757d;color:white;border:none;border-radius:3px;cursor:pointer;align-self:flex-start;margin-top:5px;}
                 .fastlink-mini-progress-restore-btn:hover{background-color:#5a6268;}
-                /* 公共资源库列表项激活样式 */
-                .fl-public-repo-item.active { background-color: #e6f7ff; border-left: 3px solid #1890ff; }
-                 /* 分享名输入框和提交按钮的容器 */
-                .fl-submit-to-public-repo-container { margin-top: 15px; padding-top: 10px; border-top: 1px solid #eee; }
-                .fl-submit-to-public-repo-container label { display: block; margin-bottom: 5px; font-weight: bold; text-align: left; }
-                .fl-submit-to-public-repo-container input[type="text"] { width: calc(100% - 18px); margin-bottom: 8px; }
-                .fl-submit-to-public-repo-container .submit-tip { font-size: 0.85em; color: #666; text-align: left; margin-bottom: 10px; }
-                #fastlink-modal-content-area { text-align: left; } /* 确保内容区默认左对齐 */
-                .fastlink-modal.info_modal_only_content .fastlink-modal-content { text-align: center; } /* 对于只有内容的简单提示，可以居中 */
-
+                /* 公共资源库浏览器样式 */
+                .public-repo-search-bar { display: flex; margin-bottom: 10px; }
+                .public-repo-search-input { flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px 0 0 4px; }
+                .public-repo-search-button { padding: 8px 12px; background-color: #007bff; color: white; border: 1px solid #007bff; border-radius: 0 4px 4px 0; cursor: pointer; }
+                .public-repo-content-area { max-height: 300px; overflow-y: auto; border: 1px solid #eee; padding: 5px; margin-bottom: 10px; }
+                .public-repo-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 5px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+                .public-repo-item:last-child { border-bottom: none; }
+                .public-repo-item:hover, .public-repo-item.selected { background-color: #e9f5ff; }
+                .public-repo-item-info { flex-grow: 1; }
+                .public-repo-item-name { font-weight: bold; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .public-repo-item-timestamp { font-size: 0.8em; color: #666; display: block; }
+                .public-repo-item-actions button { background: none; border: none; font-size: 1.2em; cursor: pointer; padding: 5px; color: #007bff; }
+                .public-repo-loading, .public-repo-empty { text-align: center; color: #888; padding: 15px; }
+                .public-repo-import-status { font-size: 0.9em; color: #666; margin-top: 5px; min-height: 1.2em; }
+                .public-repo-tree-modal .fastlink-modal-content { max-height: 70vh; }
+                .public-repo-tree-item { padding: 2px 0; font-family: monospace; white-space: pre; }
             `;
             GM_addStyle(css);
         },
-        initMiniProgress: function() {
+        initMiniProgress: function() { // Added for mini progress
             if (this.miniProgressElement) return;
             this.miniProgressElement = document.createElement('div');
             this.miniProgressElement.className = 'fastlink-mini-progress';
@@ -1466,13 +1189,13 @@
                 }
             });
         },
-        showMiniProgress: function() {
+        showMiniProgress: function() { // Added for mini progress
             if (this.miniProgressElement) {
                 this.miniProgressElement.style.display = 'flex';
                 this.isMiniProgressActive = true;
             }
         },
-        hideMiniProgress: function() {
+        hideMiniProgress: function() { // Added for mini progress
             if (this.miniProgressElement) {
                 this.miniProgressElement.style.display = 'none';
                 this.isMiniProgressActive = false;
@@ -1481,52 +1204,311 @@
         createDropdownButton: function() {
             const existingButtons = document.querySelectorAll('.fastlink-main-button-container'); existingButtons.forEach(btn => btn.remove()); const targetElement = document.querySelector(DOM_SELECTORS.TARGET_BUTTON_AREA); if (targetElement && targetElement.parentNode) { const buttonContainer = document.createElement('div'); buttonContainer.className = 'fastlink-main-button-container ant-dropdown-trigger sysdiv parmiryButton'; buttonContainer.style.borderRight = '0.5px solid rgb(217, 217, 217)'; buttonContainer.style.cursor = 'pointer'; buttonContainer.style.marginLeft = '20px'; buttonContainer.innerHTML = `<span role="img" aria-label="menu" class="anticon anticon-menu" style="margin-right: 6px;"><svg viewBox="64 64 896 896" focusable="false" data-icon="menu" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M120 300h720v60H120zm0 180h720v60H120zm0 180h720v60H120z"></path></svg></span> 秒传 `;
             const dropdownMenu = document.createElement('div'); dropdownMenu.id = 'fastlink-dropdown-menu-container'; dropdownMenu.style.display = 'none';
-            // 修改菜单项顺序和新增项
             dropdownMenu.innerHTML = `
                 <ul class="ant-dropdown-menu ant-dropdown-menu-root ant-dropdown-menu-vertical ant-dropdown-menu-light" role="menu" tabindex="0" data-menu-list="true" style="border-radius: 10px;">
-                    <li id="fastlink-public-repository" class="ant-dropdown-menu-item ant-dropdown-menu-item-only-child" role="menuitem" tabindex="-1" style="padding: 5px 12px;">📦 公共资源库</li>
+                    <li id="fastlink-public-repo-browser" class="ant-dropdown-menu-item ant-dropdown-menu-item-only-child" role="menuitem" tabindex="-1" style="padding: 5px 12px;">📦 公共资源库</li>
                     <li id="fastlink-generateShare" class="ant-dropdown-menu-item ant-dropdown-menu-item-only-child" role="menuitem" tabindex="-1" style="padding: 5px 12px;">🔗 生成链接 (选中项)</li>
                     <li class="ant-dropdown-menu-item ant-dropdown-menu-item-only-child" role="separator" style="border-top: 1px solid #eee; margin: 3px 0; padding: 0;"></li>
                     <li id="fastlink-receiveDirect" class="ant-dropdown-menu-item ant-dropdown-menu-item-only-child" role="menuitem" tabindex="-1" style="padding: 5px 12px;">📥 链接/文件转存</li>
                     <li id="fastlink-generateFromPublicShare" class="ant-dropdown-menu-item ant-dropdown-menu-item-only-child" role="menuitem" tabindex="-1" style="padding: 5px 12px;">🌐 从分享链接生成</li>
                     <li class="ant-dropdown-menu-item ant-dropdown-menu-item-only-child" role="separator" style="border-top: 1px solid #eee; margin: 3px 0; padding: 0;"></li>
                     <li id="fastlink-filterSettings" class="ant-dropdown-menu-item ant-dropdown-menu-item-only-child" role="menuitem" tabindex="-1" style="padding: 5px 12px;">🔍 元数据过滤设置</li>
-                    <li id="fastlink-serverSettings" class="ant-dropdown-menu-item ant-dropdown-menu-item-only-child" role="menuitem" tabindex="-1" style="padding: 5px 12px;">⚙️ 公共资源库服务器设置</li>
+                    <li id="fastlink-public-repo-settings" class="ant-dropdown-menu-item ant-dropdown-menu-item-only-child" role="menuitem" tabindex="-1" style="padding: 5px 12px;">⚙️ 公共资源库服务器设置</li>
                 </ul>`;
             this.dropdownMenuElement = dropdownMenu;
             buttonContainer.addEventListener('click', (e) => { e.stopPropagation(); dropdownMenu.style.display = dropdownMenu.style.display === 'none' ? 'block' : 'none'; });
             document.addEventListener('click', (e) => { if (this.dropdownMenuElement && !buttonContainer.contains(e.target) && !this.dropdownMenuElement.contains(e.target)) { if (this.dropdownMenuElement.style.display !== 'none') this.dropdownMenuElement.style.display = 'none'; } });
 
-            // 绑定新菜单项事件
-            dropdownMenu.querySelector('#fastlink-public-repository').addEventListener('click', (e) => { e.stopPropagation(); dropdownMenu.style.display = 'none'; this.showModal("📦 公共资源库", "", 'publicRepository'); });
-            dropdownMenu.querySelector('#fastlink-serverSettings').addEventListener('click', (e) => { e.stopPropagation(); dropdownMenu.style.display = 'none'; this.showModal("⚙️ 公共资源库服务器设置", "", 'serverSettings'); });
-
+            dropdownMenu.querySelector('#fastlink-public-repo-browser').addEventListener('click', (e) => { e.stopPropagation(); dropdownMenu.style.display = 'none'; this.showPublicRepoBrowserModal(); });
             dropdownMenu.querySelector('#fastlink-generateShare').addEventListener('click', async (e) => { e.stopPropagation(); dropdownMenu.style.display = 'none'; await coreLogic.generateShareLink(); });
             dropdownMenu.querySelector('#fastlink-generateFromPublicShare').addEventListener('click', (e) => { e.stopPropagation(); dropdownMenu.style.display = 'none'; this.showModal("🌐 从分享链接中生成链接", "", 'inputPublicShare'); });
             dropdownMenu.querySelector('#fastlink-receiveDirect').addEventListener('click', (e) => { e.stopPropagation(); dropdownMenu.style.display = 'none'; this.showModal("📥 文件转存/粘贴链接", "", 'inputLink'); });
             dropdownMenu.querySelector('#fastlink-filterSettings').addEventListener('click', (e) => { e.stopPropagation(); dropdownMenu.style.display = 'none'; this.showModal("🔍 元数据过滤设置", "", 'filterSettings'); });
+            dropdownMenu.querySelector('#fastlink-public-repo-settings').addEventListener('click', (e) => { e.stopPropagation(); dropdownMenu.style.display = 'none'; this.showPublicRepoSettingsModal(); });
+
             targetElement.parentNode.insertBefore(buttonContainer, targetElement.nextSibling); buttonContainer.appendChild(dropdownMenu); console.log(`[${SCRIPT_NAME}] 秒传按钮已添加。`); return true;
             } else { console.warn(`[${SCRIPT_NAME}] 目标按钮区域 '${DOM_SELECTORS.TARGET_BUTTON_AREA}' 未找到。`); return false; }
         },
-        showModal: function(title, content, type = 'info', closable = true, pureLinkForClipboard = null, jsonDataForExport = null, preprocessingFailuresForLog = null) {
-            const isOperationalModal = (t) => ['progress_stoppable', 'inputLink', 'inputPublicShare', 'filterSettings', 'showLink', 'serverSettings', 'publicRepository', 'info_modal_only_content'].includes(t);
+
+        showPublicRepoSettingsModal: function() {
+            const currentUrl = publicRepoApiHelper.getBaseUrl();
+            const content = `
+                <p style="text-align:left; font-size:0.9em; margin-bottom:8px;">请输入公共资源库服务器的 Base URL (链接必须以 http/https 开头，并以 / 结尾)。</p>
+                <input type="url" id="fl-m-public-repo-url" class="fastlink-modal-input" value="${currentUrl}" placeholder="例如: http://your-server.com/api/">
+                <p id="fl-m-public-repo-url-status" style="font-size:0.8em; color:red; min-height:1em;"></p>
+            `;
+            this.showModal("⚙️ 公共资源库服务器设置", content, 'publicRepoSettings');
+        },
+
+        showPublicRepoBrowserModal: async function() {
+            this.publicRepoState.currentPage = 1;
+            this.publicRepoState.isLoading = false;
+            this.publicRepoState.isEndOfList = false;
+            this.publicRepoState.currentSearchTerm = '';
+            this.publicRepoState.currentSearchPage = 1;
+            this.publicRepoState.isSearching = false;
+            this.publicRepoState.isSearchEndOfList = false;
+            this.publicRepoState.selectedShareForImport = null;
+
+            const content = `
+                <div class="public-repo-search-bar">
+                    <input type="text" id="fl-m-public-repo-search-input" class="public-repo-search-input" placeholder="搜索分享的根目录名...">
+                </div>
+                <div id="fl-m-public-repo-content-area" class="public-repo-content-area">
+                    <p class="public-repo-loading">正在加载...</p>
+                </div>
+                <p id="fl-m-public-repo-import-status" class="public-repo-import-status"></p>
+            `;
+            this.showModal("📦 公共资源库", content, 'publicRepoBrowser');
+
+            const contentArea = this.modalElement.querySelector('#fl-m-public-repo-content-area');
+            const searchInput = this.modalElement.querySelector('#fl-m-public-repo-search-input');
+
+            const loadShares = async (page, searchTerm = '') => {
+                if (this.publicRepoState.isLoading) return;
+                this.publicRepoState.isLoading = true;
+
+                const isSearchMode = !!searchTerm;
+                const loadingEl = contentArea.querySelector('.public-repo-loading');
+                if (!loadingEl && page > 1) { // Add loading more indicator if not first page and no global loading
+                     const moreLoading = document.createElement('p');
+                     moreLoading.className = 'public-repo-loading';
+                     moreLoading.textContent = '正在加载更多...';
+                     contentArea.appendChild(moreLoading);
+                }
+
+                try {
+                    let data;
+                    if (isSearchMode) {
+                        data = await publicRepoApiHelper.searchDatabase(searchTerm, page);
+                    } else {
+                        data = await publicRepoApiHelper.listPublicShares(page);
+                    }
+
+                    const existingLoading = contentArea.querySelector('.public-repo-loading');
+                    if (existingLoading) existingLoading.remove();
+
+                    if (data && data.success) {
+                        if (page === 1) contentArea.innerHTML = ''; // Clear on first page of new list/search
+
+                        if (data.files && data.files.length > 0) {
+                            data.files.forEach(share => {
+                                const itemDiv = document.createElement('div');
+                                itemDiv.className = 'public-repo-item';
+                                itemDiv.dataset.codehash = share.codeHash;
+                                itemDiv.dataset.name = share.name;
+
+                                const infoDiv = document.createElement('div');
+                                infoDiv.className = 'public-repo-item-info';
+                                infoDiv.innerHTML = `
+                                    <span class="public-repo-item-name">${share.name}</span>
+                                    <span class="public-repo-item-timestamp">更新时间: ${new Date(share.timestamp).toLocaleString()}</span>
+                                `;
+
+                                const actionsDiv = document.createElement('div');
+                                actionsDiv.className = 'public-repo-item-actions';
+                                const viewTreeBtn = document.createElement('button');
+                                viewTreeBtn.innerHTML = '🔍';
+                                viewTreeBtn.title = '查看目录结构';
+                                viewTreeBtn.onclick = (e) => {
+                                    e.stopPropagation();
+                                    this.showPublicShareContentTreeModal(share.codeHash);
+                                };
+                                actionsDiv.appendChild(viewTreeBtn);
+
+                                itemDiv.appendChild(infoDiv);
+                                itemDiv.appendChild(actionsDiv);
+
+                                itemDiv.onclick = () => {
+                                    document.querySelectorAll('.public-repo-item.selected').forEach(sel => sel.classList.remove('selected'));
+                                    itemDiv.classList.add('selected');
+                                    this.publicRepoState.selectedShareForImport = { codeHash: share.codeHash, name: share.name };
+                                    const importStatusEl = this.modalElement.querySelector('#fl-m-public-repo-import-status');
+                                    if (importStatusEl) importStatusEl.textContent = `已选择 "${share.name}"`;
+                                };
+                                contentArea.appendChild(itemDiv);
+                            });
+                            if (isSearchMode) {
+                                this.publicRepoState.currentSearchPage = page;
+                                this.publicRepoState.isSearchEndOfList = data.end;
+                            } else {
+                                this.publicRepoState.currentPage = page;
+                                this.publicRepoState.isEndOfList = data.end;
+                            }
+                        } else if (page === 1) {
+                            contentArea.innerHTML = `<p class="public-repo-empty">${isSearchMode ? '没有匹配的搜索结果。' : '暂无公共资源。'}</p>`;
+                        }
+                         if ((isSearchMode && data.end) || (!isSearchMode && data.end)) {
+                            const endMsg = document.createElement('p');
+                            endMsg.className = 'public-repo-empty';
+                            endMsg.textContent = '已到达列表末尾。';
+                            contentArea.appendChild(endMsg);
+                        }
+
+                    } else {
+                        if (page === 1) contentArea.innerHTML = ''; // Clear on first page
+                        this.showAlert(`加载公共分享失败: ${data.message || '未知错误'}`);
+                         if (isSearchMode) this.publicRepoState.isSearchEndOfList = true;
+                         else this.publicRepoState.isEndOfList = true;
+                    }
+                } catch (error) {
+                    console.error("加载公共分享出错:", error);
+                    if (page === 1) contentArea.innerHTML = '';
+                    this.showAlert(`加载公共分享出错: ${error.message}`);
+                    if (isSearchMode) this.publicRepoState.isSearchEndOfList = true;
+                    else this.publicRepoState.isEndOfList = true;
+                } finally {
+                    this.publicRepoState.isLoading = false;
+                }
+            };
+
+            // Initial load
+            loadShares(1);
+
+            // Search functionality
+            let searchTimeout;
+            searchInput.addEventListener('input', () => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    const term = searchInput.value.trim();
+                    this.publicRepoState.currentSearchTerm = term;
+                    this.publicRepoState.selectedShareForImport = null; // Clear selection on new search
+                    const importStatusEl = this.modalElement.querySelector('#fl-m-public-repo-import-status');
+                    if (importStatusEl) importStatusEl.textContent = '';
+
+                    if (term) {
+                        this.publicRepoState.isSearching = true;
+                        this.publicRepoState.currentSearchPage = 1;
+                        this.publicRepoState.isSearchEndOfList = false;
+                        contentArea.innerHTML = '<p class="public-repo-loading">正在搜索...</p>';
+                        loadShares(1, term);
+                    } else {
+                        this.publicRepoState.isSearching = false;
+                        this.publicRepoState.currentPage = 1;
+                        this.publicRepoState.isEndOfList = false;
+                        contentArea.innerHTML = '<p class="public-repo-loading">正在加载...</p>';
+                        loadShares(1);
+                    }
+                }, 500);
+            });
+
+            // Infinite scroll
+            contentArea.addEventListener('scroll', () => {
+                if (this.publicRepoState.isLoading) return;
+                const isEnd = this.publicRepoState.isSearching ? this.publicRepoState.isSearchEndOfList : this.publicRepoState.isEndOfList;
+                if (isEnd) return;
+
+                if (contentArea.scrollTop + contentArea.clientHeight >= contentArea.scrollHeight - 50) { // 50px threshold
+                    if (this.publicRepoState.isSearching) {
+                        loadShares(this.publicRepoState.currentSearchPage + 1, this.publicRepoState.currentSearchTerm);
+                    } else {
+                        loadShares(this.publicRepoState.currentPage + 1);
+                    }
+                }
+            });
+        },
+
+        showPublicShareContentTreeModal: async function(codeHash) {
+            const modalId = `public-repo-tree-modal-${Date.now()}`;
+            const tempModalElement = document.createElement('div');
+            tempModalElement.id = modalId;
+
+            const title = "🌲 目录结构";
+            let treeContent = `<div id="fl-m-tree-display" style="text-align:left; max-height: 60vh; overflow-y: auto;"><p class="public-repo-loading">正在加载目录树...</p></div>`;
+            this.showModal(title, treeContent, 'publicRepoTree', true, null, null, null, tempModalElement); // Use a new type if needed for styling
+
+            const treeDisplayArea = tempModalElement.querySelector('#fl-m-tree-display');
+
+            try {
+                const result = await publicRepoApiHelper.getContentTree({ codeHash });
+                if (result.isFinish === true) {
+                    if (Array.isArray(result.message) && result.message.length > 0) {
+                        treeDisplayArea.innerHTML = result.message.map(line => `<div class="public-repo-tree-item">${line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`).join('');
+                    } else {
+                        treeDisplayArea.innerHTML = '<p class="public-repo-empty">此分享内容为空或目录结构无法解析。</p>';
+                    }
+                } else {
+                    treeDisplayArea.innerHTML = `<p class="error-message">获取目录树失败: ${result.message}</p>`;
+                }
+            } catch (error) {
+                console.error('获取目录树失败:', error);
+                treeDisplayArea.innerHTML = `<p class="error-message">请求目录树失败: ${error.message}</p>`;
+            }
+        },
+
+        async handlePublicRepoImport() {
+            if (!this.publicRepoState.selectedShareForImport) {
+                this.showAlert("请先从列表中选择一个分享进行导入。");
+                return;
+            }
+            const { codeHash, name } = this.publicRepoState.selectedShareForImport;
+            const importBtn = this.modalElement.querySelector('#fl-m-public-repo-import-btn');
+            const importStatusEl = this.modalElement.querySelector('#fl-m-public-repo-import-status');
+
+            if (importBtn) importBtn.disabled = true;
+            if (importStatusEl) importStatusEl.textContent = `正在处理 "${name}"...`;
+
+            try {
+                // 1. 获取完整分享码
+                if (importStatusEl) importStatusEl.textContent = `(1/3) 正在获取 "${name}" 的完整分享码...`;
+                const shareCodeData = await publicRepoApiHelper.getShareCode(codeHash);
+                if (!shareCodeData.isFinish || !shareCodeData.message) {
+                    throw new Error(`获取完整分享码失败: ${shareCodeData.message || '未知错误'}`);
+                }
+                const longShareCode = shareCodeData.message;
+
+                // 2. 转换为123FastLink JSON
+                if (importStatusEl) importStatusEl.textContent = `(2/3) 正在为 "${name}" 转换格式...`;
+                // 使用选择的分享名作为 rootFolderName
+                const fastLinkJsonData = await publicRepoApiHelper.transformShareCodeTo123FastLinkJson(longShareCode, name);
+                if (!fastLinkJsonData.isFinish || typeof fastLinkJsonData.message !== 'object') {
+                    throw new Error(`分享码转换为JSON失败: ${fastLinkJsonData.message || '未知错误'}`);
+                }
+                const jsonDataToImport = fastLinkJsonData.message;
+
+                // 3. 使用脚本自带的JSON导入功能
+                if (importStatusEl) importStatusEl.textContent = `(3/3) 正在导入 "${name}" 到您的网盘...`;
+                await coreLogic.transferImportedJsonData(jsonDataToImport, ""); // "" 表示导入到当前目录
+
+                if (importStatusEl) importStatusEl.textContent = `✅ "${name}" 导入成功！请刷新页面查看。`;
+                this.showAlert(`"${name}" 已成功开始转存。请留意脚本的转存进度提示，完成后请刷新页面。`, 3000);
+                // Optionally close the public repo browser modal after successful import start
+                // this.hideModal();
+
+            } catch (error) {
+                console.error("公共资源库导入失败:", error);
+                if (importStatusEl) importStatusEl.textContent = `❌ 导入 "${name}" 失败: ${error.message}`;
+                this.showError(`导入 "${name}" 失败: ${error.message}`, 5000);
+            } finally {
+                if (importBtn) importBtn.disabled = false;
+            }
+        },
+
+        showModal: function(title, content, type = 'info', closable = true, pureLinkForClipboard = null, jsonDataForExport = null, preprocessingFailuresForLog = null, customModalElement = null) {
+            const isOperationalModal = (t) => ['progress_stoppable', 'inputLink', 'inputPublicShare', 'filterSettings', 'showLink', 'publicRepoSettings', 'publicRepoBrowser', 'publicRepoTree'].includes(t);
 
             if (this.modalElement && this.activeModalOperationType && this.activeModalOperationType !== type && isOperationalModal(this.activeModalOperationType) && isOperationalModal(type) ) {
-                // console.log(`[${SCRIPT_NAME}] Hiding active modal ('${this.activeModalOperationType}') for new modal ('${type}').`);
+                console.log(`[${SCRIPT_NAME}] Hiding active modal ('${this.activeModalOperationType}') for new modal ('${type}').`);
                 if (this.modalHideCallback) { this.modalHideCallback(); this.modalHideCallback = null; }
-                this.modalElement.style.display = 'none';
-            } else if (this.modalElement && type !== 'info' && type !== 'error' && type !== 'info_modal_only_content' && this.activeModalOperationType !== type) {
-                this.hideModal();
-            }
-             // 特殊处理：如果当前模态框是info_modal_only_content（通常是加载提示），并且新的模态框不是它自己，则隐藏它
-            if (this.modalElement && this.activeModalOperationType === 'info_modal_only_content' && type !== 'info_modal_only_content') {
-                this.hideModal();
+                // Only hide if not the custom element already shown.
+                if (this.modalElement !== customModalElement) {
+                     this.modalElement.style.display = 'none';
+                }
+            } else if (this.modalElement && type !== 'info' && type !== 'error' && this.activeModalOperationType !== type) { // Avoid hiding info/error for another of same, ensure different op type
+                 if (this.modalElement !== customModalElement) this.hideModal();
             }
 
-            if (this.modalElement && this.modalElement.style.display === 'none' && this.activeModalOperationType === type && isOperationalModal(type)) {
+            if (customModalElement) { // If a custom pre-created modal is passed (for tree view)
+                this.modalElement = customModalElement;
+                // Ensure it's visible if it was hidden
+                if (this.modalElement.style.display === 'none') this.modalElement.style.display = 'flex';
+            }
+            // Reshow existing modal
+            else if (this.modalElement && this.modalElement.style.display === 'none' && this.activeModalOperationType === type && isOperationalModal(type)) {
                 this.modalElement.style.display = 'flex';
                 const titleEl = this.modalElement.querySelector('.fastlink-modal-title');
                 if (titleEl) titleEl.textContent = title;
+                 // If it's a progress_stoppable modal being reshown, ensure buttons are in correct state
                 if (type === 'progress_stoppable') {
                     const stopBtnInstance = this.modalElement.querySelector(`#${processStateManager.getStopButtonId()}`);
                     const cancelBtnInstance = this.modalElement.querySelector('#fl-m-cancel.close-btn');
@@ -1536,82 +1518,67 @@
                     }
                     if (cancelBtnInstance) {
                         cancelBtnInstance.textContent = processStateManager.isStopRequested() ? "关闭" : "隐藏";
-                        cancelBtnInstance.disabled = !processStateManager.isStopRequested() && type === 'progress_stoppable' && !this.modalElement.querySelector(`#${processStateManager.getStopButtonId()}`)?.disabled ;
+                        // Disable hide if stop is active, or if the stop button exists and is not disabled (meaning process is running)
+                        cancelBtnInstance.disabled = stopBtnInstance && !stopBtnInstance.disabled && !processStateManager.isStopRequested();
                     }
                 }
                 return;
             } else if (this.modalElement && this.modalElement.style.display === 'none' && this.activeModalOperationType !== type) {
-                this.hideModal();
+                this.hideModal(); // Hide previous different operational modal
             }
 
-            this.modalElement = document.createElement('div'); this.modalElement.className = 'fastlink-modal';
-            if (type === 'filterSettings') this.modalElement.className += ' filter-dialog';
-            if (type === 'publicRepository') this.modalElement.className += ' public-repo-dialog'; // 为公共资源库模态框添加特定类
-            if (type === 'info_modal_only_content') this.modalElement.className += ' info-message-only'; // 无边框、无标题的纯消息提示
+            if (!this.modalElement || this.modalElement !== customModalElement) { // Create new modal if no existing one or not the supplied custom one
+                 if (this.modalElement) this.modalElement.remove(); // Remove any old one if it exists.
+                 this.modalElement = document.createElement('div');
+                 this.modalElement.className = 'fastlink-modal';
+                 document.body.appendChild(this.modalElement);
+            }
+
+            // Apply specific class for styling if needed
+            if (type === 'filterSettings') this.modalElement.classList.add('filter-dialog');
+            else if (type === 'publicRepoTree') this.modalElement.classList.add('public-repo-tree-modal');
+            else if (type === 'publicRepoBrowser'){ this.modalElement.style.width = '500px'; /* Wider for browser */ }
+            else { this.modalElement.style.width = '420px'; /* Reset to default */}
 
             let htmlContent = `<div class="fastlink-modal-title">${title}</div><div id="${this.MODAL_CONTENT_ID}" class="fastlink-modal-content">`;
-            if (type === 'inputLink') { htmlContent += `<div id="fl-m-drop-area" class="fastlink-drag-drop-area"><textarea id="fl-m-link-input" class="fastlink-modal-input" placeholder="🔗 粘贴秒传链接 或 📂 将文件拖放到此处..." style="min-height: 60px;">${content|| ''}</textarea><div id="fl-m-file-drop-status" style="font-size:0.9em; color:#28a745; margin-top:5px; margin-bottom:5px; min-height:1.2em;"></div><div class="fastlink-file-input-container"><label for="fl-m-file-input">或通过选择文件导入:</label><input type="file" id="fl-m-file-input" accept=".json,.123fastlink,.txt" class="fastlink-modal-file-input"></div></div><div class="folder-selector-container"><label for="fl-folder-selector" class="folder-selector-label">目标文件夹路径 (可选, 相对于当前目录):</label><div class="folder-selector-input-container"><input type="text" id="fl-folder-selector" class="folder-selector-input" placeholder="如: 电影/漫威 (留空则导入到当前目录)"><div id="fl-folder-dropdown" class="folder-selector-dropdown"></div></div><div id="fl-selected-folders" class="folder-tag-container"></div></div>`; }
+            if (type === 'inputLink') { htmlContent += `<div id="fl-m-drop-area" class="fastlink-drag-drop-area"><textarea id="fl-m-link-input" class="fastlink-modal-input" placeholder="🔗 粘贴秒传链接 或 📂 将文件拖放到此处..." style="min-height: 60px;">${content|| ''}</textarea><div id="fl-m-file-drop-status" style="font-size:0.9em; color:#28a745; margin-top:5px; margin-bottom:5px; min-height:1.2em;"></div><div class="fastlink-file-input-container"><label for="fl-m-file-input">或通过选择文件导入:</label><input type="file" id="fl-m-file-input" accept=".json,.123fastlink,.txt" class="fastlink-modal-file-input"></div></div><div class="folder-selector-container"><label for="fl-folder-selector" class="folder-selector-label">目标文件夹路径 (可选):</label><div class="folder-selector-input-container"><input type="text" id="fl-folder-selector" class="folder-selector-input" placeholder="输入目标文件夹路径，如: 电影/漫威"><div id="fl-folder-dropdown" class="folder-selector-dropdown"></div></div><div id="fl-selected-folders" class="folder-tag-container"></div></div>`; }
             else if (type === 'inputPublicShare') { htmlContent += `<input type="text" id="fl-m-public-share-key" class="fastlink-modal-input" placeholder="🔑 分享Key 或 完整分享链接"><input type="text" id="fl-m-public-share-pwd" class="fastlink-modal-input" placeholder="🔒 提取码 (如有)"><input type="text" id="fl-m-public-share-fid" class="fastlink-modal-input" value="0" placeholder="📁 起始文件夹ID (默认0为根目录)">`; }
             else if (type === 'filterSettings') { htmlContent += filterManager.buildFilterModalContent(); }
-            else if (type === 'serverSettings') {
-                htmlContent += `<label for="fl-server-base-url-input" style="display:block; margin-bottom:5px; font-weight:bold;">服务器BASE URL:</label>
-                                <input type="text" id="fl-server-base-url-input" class="fastlink-modal-input" value="${escapeHtml(currentPublicRepoBaseUrl)}" placeholder="例如: http://example.com/api/">
-                                <p style="font-size:0.85em; color:#666;">请输入公共资源库API服务器的完整URL，以 "http://" 或 "https://" 开头，并以 "/" 结尾。</p>`;
-            } else if (type === 'publicRepository') {
-                htmlContent += `<input type="text" id="fl-public-repo-search" class="fastlink-modal-input" placeholder="🔍 搜索分享名..." style="margin-bottom:10px;">
-                                <div id="fl-public-repo-list" style="max-height: 350px; overflow-y: auto; border: 1px solid #ddd; padding: 5px;">
-                                    <p style="text-align:center; color:#888;">正在加载...</p>
-                                </div>
-                                <input type="hidden" id="fl-public-repo-selected-codehash">
-                                <input type="hidden" id="fl-public-repo-selected-name">
-                                <div class="folder-selector-container" style="margin-top:10px;">
-                                   <label for="fl-public-repo-target-folder" class="folder-selector-label">导入到目标文件夹路径 (可选, 相对于当前目录):</label>
-                                   <input type="text" id="fl-public-repo-target-folder" class="folder-selector-input" placeholder="如: 我的下载/番剧 (留空则导入当前目录)">
-                                </div>`;
-            } else if (type === 'info_modal_only_content') {
-                 // 对于这种类型，我们可能不想要标题栏
-                 this.modalElement.innerHTML = `<div id="${this.MODAL_CONTENT_ID}" class="fastlink-modal-content" style="text-align:center; padding:15px;">${content}</div>`;
-                 document.body.appendChild(this.modalElement);
-                 this.activeModalOperationType = type;
-                 return; // 提前返回，不走后面的按钮逻辑
-            }
-            else htmlContent += content; // 普通内容
-
-            htmlContent += `</div><div class="fastlink-modal-buttons">`; // 开始按钮区域
+            else if (type === 'publicRepoSettings') { htmlContent += content; } // Content is pre-built
+            else if (type === 'publicRepoBrowser') { htmlContent += content; } // Content is pre-built
+            else if (type === 'publicRepoTree') { htmlContent += content; } // Content is pre-built
+            else htmlContent += content;
+            htmlContent += `</div><div class="fastlink-modal-buttons">`;
 
             if (type === 'inputLink') { htmlContent += `<button id="fl-m-confirm" class="confirm-btn">➡️ 转存</button><button id="fl-m-cancel" class="cancel-btn">取消</button>`; }
             else if (type === 'inputPublicShare') { htmlContent += `<button id="fl-m-generate-public" class="confirm-btn">✨ 生成</button><button id="fl-m-cancel" class="cancel-btn">取消</button>`; }
             else if (type === 'filterSettings') { htmlContent += `<button id="fl-m-save-filters" class="confirm-btn">💾 保存设置</button><button id="fl-m-cancel" class="cancel-btn">取消</button>`; }
-            else if (type === 'serverSettings') { htmlContent += `<button id="fl-m-save-server-settings" class="confirm-btn">💾 保存设置</button><button id="fl-m-cancel" class="cancel-btn">取消</button>`; }
-            else if (type === 'publicRepository') { htmlContent += `<button id="fl-public-repo-import-btn" class="confirm-btn" disabled>📥 导入选中项</button><button id="fl-m-cancel" class="cancel-btn" style="margin-left:10px;">关闭</button>`;}
+            else if (type === 'publicRepoSettings') { htmlContent += `<button id="fl-m-save-repo-url" class="confirm-btn">💾 保存URL</button><button id="fl-m-cancel" class="cancel-btn">取消</button>`;}
+            else if (type === 'publicRepoBrowser') { htmlContent += `<button id="fl-m-public-repo-import-btn" class="confirm-btn">📥 导入选中项</button><button id="fl-m-cancel" class="cancel-btn">关闭</button>`;}
             else if (type === 'showLink') {
-                 // 原有按钮
+                // Container for submission UI
+                htmlContent += `<div class="submit-to-public-repo-container">
+                                  <label for="fl-m-public-repo-sharename">分享名:</label>
+                                  <input type="text" id="fl-m-public-repo-sharename" value="${jsonDataForExport && jsonDataForExport.commonPath ? jsonDataForExport.commonPath.replace(/\/$/, '') : ''}">
+                                  <p class="hint">若您勾选了多个独立的文件/文件夹，导致该输入框内容为空，请手动填写一个总的分享名，否则会将每个勾选项都视为一个独立的分享。</p>
+                                  <button id="fl-m-submit-to-public-repo" class="submit-btn" style="margin_bottom:10px;">⏫ 提交到公共资源库</button>
+                               </div>`;
+
                 if (pureLinkForClipboard || jsonDataForExport) {
                     htmlContent += `<button id="fl-m-copy" class="copy-btn">📋 复制链接</button>`;
                     if (jsonDataForExport) htmlContent += `<button id="fl-m-export-json" class="export-btn">📄 导出为 JSON</button>`;
                 }
+                // Add copy failed log button if there are failed items from generation
                 if (preprocessingFailuresForLog && preprocessingFailuresForLog.length > 0) {
                      htmlContent += `<button id="fl-m-copy-generation-failed-log" class="copy-btn" style="margin-left:10px; background-color: #ff7f50;">📋 复制失败日志 (${preprocessingFailuresForLog.length})</button>`;
                 }
-                 htmlContent += `<button id="fl-m-cancel" class="close-btn" style="margin-left:10px;">关闭</button>`;
-
-                 // 新增部分：提交到公共资源库
-                 htmlContent += `</div>`; // 先关闭之前的按钮 div
-                 htmlContent += `<div class="fl-submit-to-public-repo-container">
-                                    <label for="fl-share-name-input">分享名:</label>
-                                    <input type="text" id="fl-share-name-input" class="fastlink-modal-input" value="${jsonDataForExport && jsonDataForExport.commonPath ? escapeHtml(jsonDataForExport.commonPath.replace(/\/$/, '')) : ''}">
-                                    <p class="submit-tip">若您勾选了多个独立的文件/文件夹，导致该输入框内容为空，请手动填写一个总的分享名，否则会将每个勾选项都视为一个独立的分享。</p>
-                                    <button id="fl-m-submit-to-public-repo" class="confirm-btn" style="width:100%; margin-top:5px; background-color: #5bc0de; border-color: #46b8da;">⏫ 提交到公共资源库</button>
-                                 </div>`;
-                 htmlContent += `<div class="fastlink-modal-buttons" style="border-top:none; padding-top:5px;">`; // 重新开始按钮 div，移除顶部边框
+                htmlContent += `<button id="fl-m-cancel" class="close-btn" style="margin-left:10px;">关闭</button>`;
             }
             else if (type === 'progress_stoppable') { htmlContent += `<button id="${processStateManager.getStopButtonId()}" class="stop-btn">🛑 停止</button><button id="fl-m-minimize" class="minimize-btn" style="margin-left: 5px;">最小化</button><button id="fl-m-cancel" class="close-btn" ${processStateManager.isStopRequested() ? '' : 'disabled'}>关闭</button>`; }
             else if (type === 'info_with_buttons' && preprocessingFailuresForLog && preprocessingFailuresForLog.length > 0) { htmlContent += `<button id="fl-m-copy-preprocessing-log" class="copy-btn">📋 复制日志</button><button id="fl-m-cancel" class="close-btn" style="margin-left:10px;">关闭</button>`; }
-            else { htmlContent += `<button id="fl-m-cancel" class="close-btn">关闭</button>`; } // 默认关闭按钮
-
-            htmlContent += `</div>`; // 关闭 .fastlink-modal-buttons
+            else { htmlContent += `<button id="fl-m-cancel" class="close-btn">关闭</button>`; } // Includes publicRepoTree
+            htmlContent += `</div>`;
             this.modalElement.innerHTML = htmlContent;
-            document.body.appendChild(this.modalElement);
 
             if (isOperationalModal(type)) this.activeModalOperationType = type; else this.activeModalOperationType = null;
 
@@ -1621,30 +1588,112 @@
              const saveFiltersBtn = this.modalElement.querySelector('#fl-m-save-filters');
              if(saveFiltersBtn){
                 saveFiltersBtn.onclick = () => {
-                    // console.log(`[${SCRIPT_NAME}] saveFiltersBtn clicked.`);
-                    // console.log(`[${SCRIPT_NAME}] Attempting to save filter settings...`);
+                    console.log(`[${SCRIPT_NAME}] saveFiltersBtn clicked.`);
+                    console.log(`[${SCRIPT_NAME}] Attempting to save filter settings...`);
                     const saveResult = filterManager.saveSettings();
-                    // console.log(`[${SCRIPT_NAME}] filterManager.saveSettings() returned: ${saveResult}`);
+                    console.log(`[${SCRIPT_NAME}] filterManager.saveSettings() returned: ${saveResult}`);
                     if(saveResult){
-                        // console.log(`[${SCRIPT_NAME}] Settings saved successfully. Hiding current modal BEFORE showing alert.`);
-                        this.hideModal();
+                        console.log(`[${SCRIPT_NAME}] Settings saved successfully. Hiding current modal BEFORE showing alert.`);
+                        this.hideModal(); // Hide current modal first
                         this.showAlert("✅ 过滤器设置已保存！", 1500);
-                        // console.log(`[${SCRIPT_NAME}] Alert for success shown.`);
+                        console.log(`[${SCRIPT_NAME}] Alert for success shown.`);
                     } else {
-                        // console.log(`[${SCRIPT_NAME}] Failed to save settings. Showing error alert.`);
+                        console.log(`[${SCRIPT_NAME}] Failed to save settings. Showing error alert.`);
                         this.showError("❌ 保存过滤器设置失败！");
-                        // console.log(`[${SCRIPT_NAME}] Error alert for save failure shown.`);
+                        console.log(`[${SCRIPT_NAME}] Error alert for save failure shown.`);
                     }
                 };
             }
 
-             if(type === 'filterSettings'){ filterManager.attachFilterEvents(); }
-             if (type === 'inputLink') { const dropArea = this.modalElement.querySelector('#fl-m-drop-area'); const fileInputEl = this.modalElement.querySelector(`#fl-m-file-input`); const linkInputEl = this.modalElement.querySelector('#fl-m-link-input'); const statusDiv = this.modalElement.querySelector('#fl-m-file-drop-status'); if (dropArea && fileInputEl && linkInputEl && statusDiv) { linkInputEl.addEventListener('input', () => { if (linkInputEl.value.trim() !== '') { if (fileInputEl.files && fileInputEl.files.length > 0) fileInputEl.value = ''; statusDiv.textContent = ''; } }); fileInputEl.addEventListener('change', () => { if (fileInputEl.files && fileInputEl.files.length > 0) { statusDiv.textContent = `已选中文件: ${fileInputEl.files[0].name}。请点击下方"转存"按钮。`; if(linkInputEl) linkInputEl.value = ''; } else statusDiv.textContent = ''; }); ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => dropArea.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false)); ['dragenter', 'dragover'].forEach(eventName => dropArea.addEventListener(eventName, () => dropArea.classList.add('drag-over-active'), false)); ['dragleave', 'drop'].forEach(eventName => dropArea.addEventListener(eventName, () => dropArea.classList.remove('drag-over-active'), false)); dropArea.addEventListener('drop', (e) => { const dt = e.dataTransfer; if (dt && dt.files && dt.files.length > 0) { const droppedFile = dt.files[0]; if (droppedFile.name.endsWith('.json') || droppedFile.name.endsWith('.123fastlink') || droppedFile.name.endsWith('.txt') || droppedFile.type === 'application/json' || droppedFile.type === 'text/plain') { try { const dataTransfer = new DataTransfer(); dataTransfer.items.add(droppedFile); fileInputEl.files = dataTransfer.files; if (statusDiv) statusDiv.textContent = `已拖放文件: ${droppedFile.name}。请点击下方"转存"按钮。`; if (linkInputEl) linkInputEl.value = ''; } catch (err) { console.error("Error creating DataTransfer:", err); if (statusDiv) statusDiv.textContent = "处理拖放文件时发生错误。"; } } else { if (statusDiv) statusDiv.textContent = "文件类型无效。请拖放 .json, .123fastlink, 或 .txt 文件。"; } } }, false); } const folderSelector = this.modalElement.querySelector('#fl-folder-selector'); const folderDropdown = this.modalElement.querySelector('#fl-folder-dropdown'); if (folderSelector && folderDropdown) { folderSelector.addEventListener('click', function() { folderDropdown.classList.toggle('active'); }); folderSelector.addEventListener('blur', function() { setTimeout(() => { folderDropdown.classList.remove('active'); }, 200); }); } }
+            if (type === 'publicRepoSettings') {
+                const saveRepoUrlBtn = this.modalElement.querySelector('#fl-m-save-repo-url');
+                const urlInput = this.modalElement.querySelector('#fl-m-public-repo-url');
+                const statusEl = this.modalElement.querySelector('#fl-m-public-repo-url-status');
+                if (saveRepoUrlBtn && urlInput && statusEl) {
+                    saveRepoUrlBtn.onclick = () => {
+                        const newUrl = urlInput.value.trim();
+                        if (!newUrl.startsWith("http://") && !newUrl.startsWith("https://")) {
+                            statusEl.textContent = "错误: URL必须以 http:// 或 https:// 开头。";
+                            return;
+                        }
+                        if (!newUrl.endsWith("/")) {
+                            statusEl.textContent = "错误: URL必须以 / 结尾。";
+                            return;
+                        }
+                        statusEl.textContent = "";
+                        publicRepoApiHelper.setBaseUrl(newUrl);
+                        this.hideModal();
+                        this.showAlert("✅ 公共资源库服务器URL已保存！", 1500);
+                    };
+                }
+            }
+            if (type === 'publicRepoBrowser') {
+                const importRepoBtn = this.modalElement.querySelector('#fl-m-public-repo-import-btn');
+                if (importRepoBtn) {
+                    importRepoBtn.onclick = () => this.handlePublicRepoImport();
+                }
+            }
+
+            if (type === 'showLink') {
+                const submitToPublicBtn = this.modalElement.querySelector('#fl-m-submit-to-public-repo');
+                const shareNameInput = this.modalElement.querySelector('#fl-m-public-repo-sharename');
+                if (submitToPublicBtn && shareNameInput && jsonDataForExport) {
+                    submitToPublicBtn.onclick = async () => {
+                        let currentJsonData = JSON.parse(JSON.stringify(jsonDataForExport)); // Deep copy
+                        let rootFolderName = shareNameInput.value.trim();
+
+                        // 如果输入框为空，且jsonDataForExport.commonPath也为空（通常是因为选了多个独立文件/文件夹导致commonPath本身就为空）
+                        // 这种情况下，文档要求用户手动填写，如果没填，则按原样提交，会生成多个分享
+                        if (rootFolderName === "" && currentJsonData.commonPath === "") {
+                             // 不需要修改 currentJsonData.commonPath，API会处理
+                        } else {
+                            // 如果用户填写了，或者jsonDataForExport.commonPath原来就有值但用户清空了，都以输入框为准
+                            currentJsonData.commonPath = rootFolderName ? rootFolderName + "/" : "";
+                        }
+
+                        submitToPublicBtn.disabled = true;
+                        submitToPublicBtn.textContent = '处理中...';
+                        try {
+                            const jsonString = JSON.stringify(currentJsonData);
+                            const result = await publicRepoApiHelper.transform123FastLinkJsonToShareCode(jsonString, true, true);
+                            if (result.isFinish) {
+                                submitToPublicBtn.textContent = '✅ 提交成功';
+                                if (Array.isArray(result.message) && result.message.length > 0) {
+                                    let successMsg = "提交成功！";
+                                    if (result.message.length > 1) {
+                                        successMsg += ` 本次提交生成了 ${result.message.length} 个独立的分享。`;
+                                    }
+                                    if (result.message[0].shortShareCode) {
+                                       // successMsg += ` 短码示例: ${result.message[0].shortShareCode}`;
+                                    }
+                                   this.showAlert(successMsg, 3000);
+                                } else {
+                                   this.showAlert("提交成功，但未返回短码信息。", 3000);
+                                }
+                            } else {
+                                submitToPublicBtn.textContent = '❌ 提交失败';
+                                this.showError(`提交失败: ${result.message || '未知错误'}`, 4000);
+                            }
+                        } catch (error) {
+                            submitToPublicBtn.textContent = '❌ 提交失败';
+                            this.showError(`提交请求失败: ${error.message}`, 4000);
+                        } finally {
+                             // submitToPublicBtn.disabled = false; // 按钮状态由成功/失败决定，不再重置为可点击
+                        }
+                    };
+                }
+            }
+
+             if(type === 'filterSettings'){
+                console.log(`[${SCRIPT_NAME}] Modal type is filterSettings, attaching filter events...`);
+                filterManager.attachFilterEvents();
+             }
+             if (type === 'inputLink') { const dropArea = this.modalElement.querySelector('#fl-m-drop-area'); const fileInputEl = this.modalElement.querySelector(`#fl-m-file-input`); const linkInputEl = this.modalElement.querySelector('#fl-m-link-input'); const statusDiv = this.modalElement.querySelector('#fl-m-file-drop-status'); if (dropArea && fileInputEl && linkInputEl && statusDiv) { linkInputEl.addEventListener('input', () => { if (linkInputEl.value.trim() !== '') { if (fileInputEl.files && fileInputEl.files.length > 0) fileInputEl.value = ''; statusDiv.textContent = ''; } }); fileInputEl.addEventListener('change', () => { if (fileInputEl.files && fileInputEl.files.length > 0) { statusDiv.textContent = `已选中文件: ${fileInputEl.files[0].name}。请点击下方"转存"按钮。`; if(linkInputEl) linkInputEl.value = ''; } else statusDiv.textContent = ''; }); ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => dropArea.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false)); ['dragenter', 'dragover'].forEach(eventName => dropArea.addEventListener(eventName, () => dropArea.classList.add('drag-over-active'), false)); ['dragleave', 'drop'].forEach(eventName => dropArea.addEventListener(eventName, () => dropArea.classList.remove('drag-over-active'), false)); dropArea.addEventListener('drop', (e) => { const dt = e.dataTransfer; if (dt && dt.files && dt.files.length > 0) { const droppedFile = dt.files[0]; if (droppedFile.name.endsWith('.json') || droppedFile.name.endsWith('.123fastlink') || droppedFile.name.endsWith('.txt') || droppedFile.type === 'application/json' || droppedFile.type === 'text/plain') { try { const dataTransfer = new DataTransfer(); dataTransfer.items.add(droppedFile); fileInputEl.files = dataTransfer.files; if (statusDiv) statusDiv.textContent = `已拖放文件: ${droppedFile.name}。请点击下方"转存"按钮。`; if (linkInputEl) linkInputEl.value = ''; } catch (err) { console.error("Error creating DataTransfer:", err); if (statusDiv) statusDiv.textContent = "处理拖放文件时发生错误。"; } } else { if (statusDiv) statusDiv.textContent = "文件类型无效。请拖放 .json, .123fastlink, 或 .txt 文件。"; } } }, false); } const folderSelector = this.modalElement.querySelector('#fl-folder-selector'); const folderDropdown = this.modalElement.querySelector('#fl-folder-dropdown'); if (folderSelector && folderDropdown) { folderSelector.addEventListener('click', function() { folderDropdown.classList.toggle('active'); }); folderSelector.addEventListener('blur', function() { setTimeout(() => { folderDropdown.classList.remove('active'); }, 200); }); /* Other folder selector events... */ } }
              const generatePublicBtn = this.modalElement.querySelector('#fl-m-generate-public'); if(generatePublicBtn){ generatePublicBtn.onclick = async () => { const shareKeyEl = this.modalElement.querySelector('#fl-m-public-share-key'); const sharePwdEl = this.modalElement.querySelector('#fl-m-public-share-pwd'); const shareFidEl = this.modalElement.querySelector('#fl-m-public-share-fid'); const rawShareKeyInput = shareKeyEl ? shareKeyEl.value.trim() : null; let sharePwd = sharePwdEl ? sharePwdEl.value.trim() : null; const shareFid = shareFidEl ? shareFidEl.value.trim() : "0"; let finalShareKey = rawShareKeyInput; if (rawShareKeyInput) { if (rawShareKeyInput.includes('/s/')) { try { let url; try { url = new URL(rawShareKeyInput); } catch (e) { if (!rawShareKeyInput.startsWith('http')) url = new URL('https://' + rawShareKeyInput); else throw e; } const pathSegments = url.pathname.split('/'); const sIndex = pathSegments.indexOf('s'); if (sIndex !== -1 && pathSegments.length > sIndex + 1) { finalShareKey = pathSegments[sIndex + 1]; const searchParams = new URLSearchParams(url.search); const possiblePwdParams = ['pwd', '提取码', 'password', 'extract', 'code']; for (const paramName of possiblePwdParams) { if (searchParams.has(paramName)) { const urlPwd = searchParams.get(paramName); if (urlPwd && (!sharePwd || sharePwd.length === 0)) { sharePwd = urlPwd; if (sharePwdEl) sharePwdEl.value = sharePwd; } break; } } if ((!sharePwd || sharePwd.length === 0)) { const fullUrl = rawShareKeyInput; const pwdRegexes = [ /[?&]提取码[:=]([A-Za-z0-9]+)/, /提取码[:=]([A-Za-z0-9]+)/, /[?&]pwd[:=]([A-Za-z0-9]+)/, /[?&]password[:=]([A-Za-z0-9]+)/ ]; for (const regex of pwdRegexes) { const match = fullUrl.match(regex); if (match && match[1]) { sharePwd = match[1]; if (sharePwdEl) sharePwdEl.value = sharePwd; break; } } } } else { let pathAfterS = rawShareKeyInput.substring(rawShareKeyInput.lastIndexOf('/s/') + 3); finalShareKey = pathAfterS.split(/[/?#]/)[0]; } } catch (e) { let pathAfterS = rawShareKeyInput.substring(rawShareKeyInput.lastIndexOf('/s/') + 3); finalShareKey = pathAfterS.split(/[/?#]/)[0]; if (!sharePwd || sharePwd.length === 0) { const pwdMatch = rawShareKeyInput.match(/提取码[:=]([A-Za-z0-9]+)/); if (pwdMatch && pwdMatch[1]) { sharePwd = pwdMatch[1]; if (sharePwdEl) sharePwdEl.value = sharePwd; } } console.warn(`[${SCRIPT_NAME}] 分享链接解析失败: ${e.message}`); } } if (finalShareKey && finalShareKey.includes('自定义')) finalShareKey = finalShareKey.split('自定义')[0]; } if (!finalShareKey) { this.showAlert("请输入有效的分享Key或分享链接。"); return; } if (isNaN(parseInt(shareFid))) { this.showAlert("起始文件夹ID必须是数字。"); return; } generatePublicBtn.disabled = true; this.modalElement.querySelector('#fl-m-cancel')?.setAttribute('disabled', 'true'); await coreLogic.generateLinkFromPublicShare(finalShareKey, sharePwd, shareFid); if(this.modalElement && generatePublicBtn){ generatePublicBtn.disabled = false; this.modalElement.querySelector('#fl-m-cancel')?.removeAttribute('disabled');} };}
              const copyBtn = this.modalElement.querySelector('#fl-m-copy'); if(copyBtn){ copyBtn.onclick = () => { const textToCopy = pureLinkForClipboard || this.modalElement.querySelector('.fastlink-link-text')?.value; if (textToCopy) { GM_setClipboard(textToCopy); this.showAlert("已复制到剪贴板！");} else this.showError("无法找到链接文本。"); };}
              const exportJsonBtn = this.modalElement.querySelector('#fl-m-export-json'); if(exportJsonBtn && jsonDataForExport){ exportJsonBtn.onclick = () => { try { this._downloadToFile(JSON.stringify(jsonDataForExport, null, 2), `123FastLink_${Date.now()}.json`, 'application/json'); this.showAlert("JSON文件已开始下载！"); } catch (e) { console.error(`[${SCRIPT_NAME}] 导出JSON失败:`, e); this.showError(`导出JSON失败: ${e.message}`); }};}
 
-             const copyGenFailedLogBtn = this.modalElement.querySelector('#fl-m-copy-generation-failed-log');
+             const copyGenFailedLogBtn = this.modalElement.querySelector('#fl-m-copy-generation-failed-log'); // For showLink type
              if (copyGenFailedLogBtn && preprocessingFailuresForLog && preprocessingFailuresForLog.length > 0) {
                 copyGenFailedLogBtn.onclick = () => {
                     const logText = preprocessingFailuresForLog.map(pf => `文件: ${pf.fileName || '未知文件'} (ID: ${pf.id || 'N/A'})\n错误: ${pf.error || '未知错误'}\n${pf.etag ? ('ETag: ' + pf.etag + '\n') : ''}${pf.size !== undefined ? ('Size: ' + pf.size + '\n') : ''}`).join('\n');
@@ -1653,88 +1702,43 @@
                 };
              }
 
-            // 新增：处理“提交到公共资源库”按钮
-            const submitToPublicRepoBtn = this.modalElement.querySelector('#fl-m-submit-to-public-repo');
-            if (submitToPublicRepoBtn && jsonDataForExport) {
-                submitToPublicRepoBtn.currentJsonData = JSON.parse(JSON.stringify(jsonDataForExport)); // 深拷贝一份，避免污染原始数据
-                submitToPublicRepoBtn.onclick = async () => {
-                    const shareNameInput = this.modalElement.querySelector('#fl-share-name-input');
-                    const userSpecifiedShareName = shareNameInput ? shareNameInput.value.trim() : "";
-
-                    if (!userSpecifiedShareName && !submitToPublicRepoBtn.currentJsonData.commonPath) {
-                        uiManager.showAlert("请为分享指定一个名称 (commonPath 为空时必须手动填写)。", 2500);
-                        shareNameInput.focus();
-                        return;
-                    }
-
-                    // 使用用户输入的分享名覆盖 commonPath
-                    // 注意：如果用户输入的分享名是 "A/B"，那么 commonPath 也应该是 "A/B/"
-                    let finalCommonPath = userSpecifiedShareName;
-                    if (finalCommonPath && !finalCommonPath.endsWith('/') && (finalCommonPath.includes('/') || submitToPublicRepoBtn.currentJsonData.files.some(f=>f.path)) ) { // 如果包含路径分隔符且不以/结尾，或者json本身有path
-                        finalCommonPath += '/';
-                    }
-                    submitToPublicRepoBtn.currentJsonData.commonPath = finalCommonPath || "";// 如果用户清空了，也用空字符串
-
-                    submitToPublicRepoBtn.disabled = true;
-                    submitToPublicRepoBtn.textContent = '🔄 正在提交...';
-
-                    try {
-                        const payload = {
-                            "123FastLinkJson": JSON.stringify(submitToPublicRepoBtn.currentJsonData),
-                            "generateShortCode": true,
-                            "shareProject": true
-                        };
-                        const response = await publicRepoManager._callPublicApi(PUBLIC_REPO_API_PATHS.TRANSFORM_FROM_123FASTLINK, 'POST', payload);
-
-                        if (response.isFinish) {
-                            submitToPublicRepoBtn.textContent = '✅ 提交成功';
-                            uiManager.showAlert('分享已成功提交到公共资源库（待审核）！短码：' + ( (Array.isArray(response.message) && response.message[0]) ? response.message[0].shortShareCode || "N/A" : "N/A"), 3000);
-                        } else {
-                            submitToPublicRepoBtn.textContent = '❌ 提交失败';
-                            uiManager.showError(`提交失败: ${response.message || '未知错误'}`);
-                        }
-                    } catch (error) {
-                        submitToPublicRepoBtn.textContent = '❌ 提交失败';
-                        uiManager.showError(`提交到公共资源库时发生网络错误: ${error.message}`);
-                    } finally {
-                        // 不再自动启用，让用户看到结果
-                    }
-                };
-            }
-
              const stopBtn = this.modalElement.querySelector(`#${processStateManager.getStopButtonId()}`); if(stopBtn){ stopBtn.onclick = () => { if (confirm("确定要停止当前操作吗？")) { processStateManager.requestStop(); const closeBtnForStop = this.modalElement.querySelector('#fl-m-cancel.close-btn'); if(closeBtnForStop) closeBtnForStop.disabled = false; const minimizeBtnForStop = this.modalElement.querySelector('#fl-m-minimize'); if(minimizeBtnForStop) minimizeBtnForStop.disabled = true; } }; }
-             const minimizeBtn = this.modalElement.querySelector('#fl-m-minimize');
+             const minimizeBtn = this.modalElement.querySelector('#fl-m-minimize'); // Added for mini progress
              if (minimizeBtn) {
                  minimizeBtn.onclick = () => {
                      if (this.modalElement) this.modalElement.style.display = 'none';
                      this.showMiniProgress();
-                     processStateManager.updateProgressUINow();
+                     // Ensure the mini progress bar shows current progress immediately
+                     processStateManager.updateProgressUINow(); // Call a direct update if needed or rely on next interval
                  };
              }
              const cancelBtn = this.modalElement.querySelector('#fl-m-cancel');
              if (cancelBtn) {
                 if (type === 'progress_stoppable') {
                     cancelBtn.textContent = processStateManager.isStopRequested() ? "关闭" : "隐藏";
-                    cancelBtn.disabled = !processStateManager.isStopRequested();
+                    cancelBtn.disabled = !processStateManager.isStopRequested(); // Only enable if stopped
                     cancelBtn.onclick = () => {
                         if (processStateManager.isStopRequested()) {
                             this.hideModal();
-                        } else {
+                        } else { // If not stopped, it acts as a hide/minimize button
                             if (this.modalElement) this.modalElement.style.display = 'none';
+                            // Consider showing mini progress or specific callback if defined
                             if (this.modalHideCallback) { this.modalHideCallback(); this.modalHideCallback = null; }
+                            // Do not call showMiniProgress here directly, let minimize button handle it.
                         }
                     };
-                } else if (type === 'showLink') {
+                } else if (type === 'showLink' || type === 'publicRepoBrowser' || type === 'publicRepoTree') { // Explicit handling for these close buttons
                     if (closable) {
-                        cancelBtn.disabled = false;
+                        cancelBtn.disabled = false; // Ensure it's enabled
                         cancelBtn.onclick = () => this.hideModal();
                     } else {
-                        cancelBtn.disabled = true;
+                        cancelBtn.disabled = true; // Should not happen if closable is true
                     }
-                } else if (closable) {
+                } else if (closable) { // General handler for other closable modals
                     cancelBtn.onclick = () => this.hideModal();
                 }
 
+                // Fallback for non-closable or if button should be disabled
                 if (!closable && type !== 'progress_stoppable') {
                      cancelBtn.disabled = true;
                 }
@@ -1743,96 +1747,24 @@
             const copyPreprocessingLogBtn = this.modalElement.querySelector('#fl-m-copy-preprocessing-log'); if(copyPreprocessingLogBtn && preprocessingFailuresForLog) { copyPreprocessingLogBtn.onclick = () => { const logText = preprocessingFailuresForLog.map(pf => `文件: ${pf.fileName || (pf.originalEntry&&pf.originalEntry.path)||'未知路径'}\n${(pf.originalEntry&&pf.originalEntry.etag)?('原始ETag: '+pf.originalEntry.etag+'\n'):(pf.etag?'处理后ETag: '+pf.etag+'\n':'')}${(pf.originalEntry&&pf.originalEntry.size)?('大小: '+pf.originalEntry.size+'\n'):(pf.size?'大小: '+pf.size+'\n':'')}错误: ${pf.error||'未知错误'}`).join('\n\n'); GM_setClipboard(logText); this.showAlert("预处理失败日志已复制到剪贴板！", 1500); };}
 
             if (type === 'progress_stoppable') { this.modalHideCallback = () => { const stopBtnInstance = this.modalElement?.querySelector(`#${processStateManager.getStopButtonId()}`); if (stopBtnInstance && !processStateManager.isStopRequested()) stopBtnInstance.textContent = "🛑 停止 (后台)"; }; }
-             if(type === 'inputLink' || type === 'inputPublicShare' || type === 'serverSettings'){ const firstInput = this.modalElement.querySelector('input[type="text"], textarea'); if(firstInput) setTimeout(() => firstInput.focus(), 100); }
-
-            // 新增：处理服务器设置保存按钮
-            const saveServerSettingsBtn = this.modalElement.querySelector('#fl-m-save-server-settings');
-            if (saveServerSettingsBtn) {
-                saveServerSettingsBtn.onclick = () => {
-                    const urlInput = this.modalElement.querySelector('#fl-server-base-url-input');
-                    if (urlInput) {
-                        let newUrl = urlInput.value.trim();
-                        if (!newUrl.startsWith("http://") && !newUrl.startsWith("https://")) {
-                            this.showAlert("URL必须以 http:// 或 https:// 开头。", 2500);
-                            return;
-                        }
-                        if (!newUrl.endsWith("/")) {
-                            newUrl += "/";
-                            urlInput.value = newUrl; // 更新输入框中的值为补全后的
-                        }
-                        GM_setValue(GM_STORAGE_KEYS.PUBLIC_REPO_BASE_URL, newUrl);
-                        currentPublicRepoBaseUrl = newUrl;
-                        this.hideModal();
-                        this.showAlert("✅ 服务器设置已保存！", 1500);
-                    }
-                };
-            }
-            // 新增：处理公共资源库搜索和滚动加载
-            if (type === 'publicRepository') {
-                const searchInput = this.modalElement.querySelector('#fl-public-repo-search');
-                const listDiv = this.modalElement.querySelector('#fl-public-repo-list');
-                const importBtn = this.modalElement.querySelector('#fl-public-repo-import-btn');
-                const targetFolderInput = this.modalElement.querySelector('#fl-public-repo-target-folder');
-
-                if (searchInput) {
-                    let searchTimeout;
-                    searchInput.addEventListener('input', () => {
-                        clearTimeout(searchTimeout);
-                        searchTimeout = setTimeout(() => {
-                            publicRepoManager.loadShares(1, searchInput.value.trim(), false);
-                            if(importBtn) importBtn.disabled = true; // 搜索时重置导入按钮
-                            const hiddenCodeHash = this.modalElement.querySelector('#fl-public-repo-selected-codehash');
-                            const hiddenName = this.modalElement.querySelector('#fl-public-repo-selected-name');
-                            if(hiddenCodeHash) hiddenCodeHash.value = '';
-                            if(hiddenName) hiddenName.value = '';
-
-                        }, 500); // 延迟搜索
-                    });
-                }
-                if (listDiv) {
-                    listDiv.addEventListener('scroll', publicRepoManager.handleScroll.bind(publicRepoManager));
-                    publicRepoManager.loadShares(1, '', false); // 初始加载第一页
-                }
-                if (importBtn) {
-                    importBtn.onclick = () => {
-                        const targetFolder = targetFolderInput ? targetFolderInput.value.trim() : "";
-                        publicRepoManager.importSelectedShare(targetFolder);
-                    };
-                }
-            }
+             if(type === 'inputLink' || type === 'inputPublicShare'){ const firstInput = this.modalElement.querySelector('input[type="text"], textarea'); if(firstInput) setTimeout(() => firstInput.focus(), 100); }
         },
         enableModalCloseButton: function(enable = true) {
             if (this.modalElement) {
                 const closeBtn = this.modalElement.querySelector('#fl-m-cancel.close-btn');
                 if (closeBtn) { closeBtn.disabled = !enable; if(enable && this.activeModalOperationType === 'progress_stoppable') closeBtn.textContent = "关闭"; }
                 const stopBtn = this.modalElement.querySelector(`#${processStateManager.getStopButtonId()}`);
-                if (stopBtn && enable) stopBtn.disabled = true;
+                if (stopBtn && enable) stopBtn.disabled = true; // If enabling close, typically stop is done
             }
         },
         updateModalContent: function(newContent) { if (this.modalElement) { const ca = this.modalElement.querySelector(`#${this.MODAL_CONTENT_ID}`); if (ca) { if (ca.tagName === 'TEXTAREA' || ca.hasAttribute('contenteditable')) ca.value = newContent; else ca.innerHTML = newContent; ca.scrollTop = ca.scrollHeight;} } },
         hideModal: function() { if (this.modalElement) { this.modalElement.remove(); this.modalElement = null; } this.activeModalOperationType = null; this.modalHideCallback = null; },
-        showAlert: function(message, duration = 2000, type='info') { // 允许指定类型
-            this.showModal(type === 'error' ? "⚠️ 错误" : "ℹ️ 提示", type === 'error' ? `<span style="color: red;">${message}</span>`: message, 'info'); setTimeout(() => { if (this.modalElement && this.modalElement.querySelector('.fastlink-modal-title')?.textContent.includes("提示") || this.modalElement.querySelector('.fastlink-modal-title')?.textContent.includes("错误") ) this.hideModal(); }, duration);
-        },
-        showError: function(message, duration = 3000) { this.showAlert(message, duration, 'error'); },
+        showAlert: function(message, duration = 2000) { this.showModal("ℹ️ 提示", message, 'info'); setTimeout(() => { if (this.modalElement && this.modalElement.querySelector('.fastlink-modal-title')?.textContent === "ℹ️ 提示") this.hideModal(); }, duration); },
+        showError: function(message, duration = 3000) { this.showModal("⚠️ 错误", `<span style="color: red;">${message}</span>`, 'info'); setTimeout(() => { if (this.modalElement && this.modalElement.querySelector('.fastlink-modal-title')?.textContent === "⚠️ 错误") this.hideModal(); }, duration); },
         getModalElement: function() { return this.modalElement; },
     };
 
-    function initialize() {
-        console.log(`[${SCRIPT_NAME}] ${SCRIPT_VERSION} 初始化...`);
-        // 加载服务器设置
-        const savedBaseUrl = GM_getValue(GM_STORAGE_KEYS.PUBLIC_REPO_BASE_URL);
-        if (savedBaseUrl && (savedBaseUrl.startsWith("http://") || savedBaseUrl.startsWith("https://")) && savedBaseUrl.endsWith("/")) {
-            currentPublicRepoBaseUrl = savedBaseUrl;
-        } else {
-            // 如果存储的值无效，则使用默认值并保存
-            GM_setValue(GM_STORAGE_KEYS.PUBLIC_REPO_BASE_URL, DEFAULT_PUBLIC_REPO_BASE_URL);
-            currentPublicRepoBaseUrl = DEFAULT_PUBLIC_REPO_BASE_URL;
-        }
-        console.log(`[${SCRIPT_NAME}] Public Repo Base URL: ${currentPublicRepoBaseUrl}`);
-
-        filterManager.init(); uiManager.applyStyles(); uiManager.initMiniProgress(); let loadAttempts = 0; const maxAttempts = 10; function tryAddButton() { loadAttempts++; const pageSeemsReady = document.querySelector(DOM_SELECTORS.TARGET_BUTTON_AREA) || document.querySelector('.Header_header__A5PFb'); if (pageSeemsReady) { if (document.querySelector('.fastlink-main-button-container')) return; if (uiManager.createDropdownButton()) return; } if (loadAttempts < maxAttempts) { const delay = loadAttempts < 3 ? 1500 : 3000; setTimeout(tryAddButton, delay); } else console.warn(`[${SCRIPT_NAME}] 达到最大尝试次数，未能添加按钮。`); } const observer = new MutationObserver((mutations, obs) => { const targetAreaExists = !!document.querySelector(DOM_SELECTORS.TARGET_BUTTON_AREA); const ourButtonExists = !!document.querySelector('.fastlink-main-button-container'); if (targetAreaExists && !ourButtonExists) { loadAttempts = 0; setTimeout(tryAddButton, 700); } }); observer.observe(document.documentElement, { childList: true, subtree: true }); setTimeout(tryAddButton, 500);
-    }
+    function initialize() { console.log(`[${SCRIPT_NAME}] ${SCRIPT_VERSION} 初始化...`); filterManager.init(); uiManager.applyStyles(); uiManager.initMiniProgress(); let loadAttempts = 0; const maxAttempts = 10; function tryAddButton() { loadAttempts++; const pageSeemsReady = document.querySelector(DOM_SELECTORS.TARGET_BUTTON_AREA) || document.querySelector('.Header_header__A5PFb'); if (pageSeemsReady) { if (document.querySelector('.fastlink-main-button-container')) return; if (uiManager.createDropdownButton()) return; } if (loadAttempts < maxAttempts) { const delay = loadAttempts < 3 ? 1500 : 3000; setTimeout(tryAddButton, delay); } else console.warn(`[${SCRIPT_NAME}] 达到最大尝试次数，未能添加按钮。`); } const observer = new MutationObserver((mutations, obs) => { const targetAreaExists = !!document.querySelector(DOM_SELECTORS.TARGET_BUTTON_AREA); const ourButtonExists = !!document.querySelector('.fastlink-main-button-container'); if (targetAreaExists && !ourButtonExists) { loadAttempts = 0; setTimeout(tryAddButton, 700); } }); observer.observe(document.documentElement, { childList: true, subtree: true }); setTimeout(tryAddButton, 500); }
     if (document.readyState === 'complete' || document.readyState === 'interactive') { setTimeout(initialize, 300); } else { window.addEventListener('DOMContentLoaded', () => setTimeout(initialize, 300)); }
 
     function isValidHex(str) { if (typeof str !== 'string' || str.length === 0) return false; return /^[0-9a-fA-F]+$/.test(str); }
@@ -1841,14 +1773,4 @@
     function hexToOptimizedEtag(hexEtag) { if (!isValidHex(hexEtag) || hexEtag.length === 0) return { original: hexEtag, optimized: null, useV2: false }; try { const bigIntValue = BigInt('0x' + hexEtag); const base62Value = bigIntToBase62(bigIntValue); if (base62Value.length > 0 && base62Value.length < hexEtag.length) return { original: hexEtag, optimized: base62Value, useV2: true }; return { original: hexEtag, optimized: hexEtag, useV2: false }; } catch (e) { console.warn(`[${SCRIPT_NAME}] ETag "${hexEtag}" to Base62 failed: ${e.message}. Using original.`); return { original: hexEtag, optimized: null, useV2: false }; } }
     function optimizedEtagToHex(optimizedEtag, isV2Etag) { if (!isV2Etag) return optimizedEtag; if (typeof optimizedEtag !== 'string' || optimizedEtag.length === 0) throw new Error("V2 ETag cannot be empty."); try { const bigIntValue = base62ToBigInt(optimizedEtag); let hex = bigIntValue.toString(16).toLowerCase(); if (hex.length < 32 && optimizedEtag.length >= 21 && optimizedEtag.length <= 22) hex = hex.padStart(32, '0'); return hex; } catch (e) { throw new Error(`Base62 ETag "${optimizedEtag}" to Hex failed: ${e.message}`); } }
   })();
-  function formatBytes(bytes, decimals = 2) { if (!bytes || bytes === 0) return '0 Bytes'; const k = 1024; const dm = decimals < 0 ? 0 : decimals; const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]; }
-  // 新增：HTML转义函数
-  function escapeHtml(unsafe) {
-    if (typeof unsafe !== 'string') return '';
-    return unsafe
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;")
-         .replace(/"/g, "&quot;")
-         .replace(/'/g, "&#039;");
- }
+  function formatBytes(bytes, decimals = 2) { if (bytes === 0) return '0 Bytes'; const k = 1024; const dm = decimals < 0 ? 0 : decimals; const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]; }
