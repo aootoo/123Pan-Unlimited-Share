@@ -67,49 +67,37 @@ function resetResultDisplay(elements) {
  * 将文本复制到剪贴板，并提供用户反馈。
  * @param {HTMLTextAreaElement|HTMLInputElement} textElement 包含要复制文本的元素。
  * @param {HTMLButtonElement} buttonElement 点击的复制按钮元素。
- * @param {string} copiedText 复制成功后按钮上显示的文本 (例如 "已复制!")。
+ * @param {string} successHtml 复制成功后按钮上显示的HTML内容 (例如 "<i class='bi bi-clipboard-check'></i> 复制成功")。
  * @param {string} originalButtonHtml 按钮的原始HTML内容。
  */
-async function copyToClipboard(textElement, buttonElement, copiedText, originalButtonHtml) {
+async function copyToClipboard(textElement, buttonElement, successHtml, originalButtonHtml) {
     if (!textElement || !textElement.value) {
-        alert('没有可复制的内容。'); // 中文提示
+        alert('没有可复制的内容。');
         return;
     }
     
-    // 保存按钮的原始 class 列表，以便恢复
     const originalClasses = Array.from(buttonElement.classList);
 
     try {
         await navigator.clipboard.writeText(textElement.value);
         if (buttonElement) {
-            buttonElement.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-lg me-1" viewBox="0 0 16 16"><path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022z"/></svg>
-                ${copiedText}`; // copiedText 应为 "已复制!"
-            // 成功时可以根据设计选择是否改变按钮颜色，这里保持原样或可添加btn-success然后移除
+            buttonElement.innerHTML = successHtml; // 使用传入的成功HTML
             setTimeout(() => {
                 buttonElement.innerHTML = originalButtonHtml;
-                // buttonElement.className = originalClasses.join(' '); // 确保恢复原始类
-            }, 2000);
+            }, 1000); // 成功提示显示1秒
         }
     } catch (err) {
-        console.error('复制到剪贴板失败:', err); // 中文注释
+        console.error('复制到剪贴板失败:', err);
         if (buttonElement) {
-            buttonElement.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle me-1" viewBox="0 0 16 16">
-                  <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-                  <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
-                </svg>
-                复制失败`; // 中文提示
-            buttonElement.classList.remove('btn-secondary', 'btn-primary'); // 移除原有颜色类
-            buttonElement.classList.add('btn-danger'); // 添加错误颜色类
+            buttonElement.innerHTML = `<i class="bi bi-x-circle"></i> 复制失败`; // 固定的失败提示
+            const tempOriginalClasses = Array.from(buttonElement.classList); // 复制一份类数组
+            buttonElement.classList.remove('btn-secondary', 'btn-primary', 'btn-info'); // 移除原有颜色类
+            buttonElement.classList.add('btn-danger'); 
             setTimeout(() => {
                 buttonElement.innerHTML = originalButtonHtml;
-                // 恢复原始类，很重要
-                buttonElement.className = originalClasses.join(' '); 
+                buttonElement.className = tempOriginalClasses.join(' '); // 确保恢复原始类
             }, 2000); // 失败提示显示时间稍长
         }
-        // 可以选择是否保留 alert 作为一种极致的后备方案，但理想情况下按钮反馈足够
-        // alert('复制失败，请尝试手动复制。');
     }
 }
 
@@ -123,21 +111,15 @@ async function copyToClipboard(textElement, buttonElement, copiedText, originalB
  */
 function downloadFile(content, filename, buttonElement, originalButtonHtml, mimeType = 'application/octet-stream') {
     if (!content) {
-        // alert('没有可下载的数据。'); // 中文提示，如果需要的话
-        if (buttonElement && originalButtonHtml) { // 如果内容为空也算一种失败，触发UI
+        if (buttonElement && originalButtonHtml) {
             const originalClasses = Array.from(buttonElement.classList);
-            buttonElement.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle me-1" viewBox="0 0 16 16">
-                  <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-                  <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
-                </svg>
-                下载失败`; // 中文提示
-             buttonElement.classList.remove('btn-primary', 'btn-secondary'); // 移除非danger类
+            buttonElement.innerHTML = `<i class="bi bi-x-circle"></i> 下载失败`;
+            buttonElement.classList.remove('btn-primary', 'btn-secondary', 'btn-info');
             buttonElement.classList.add('btn-danger');
              setTimeout(() => {
                 buttonElement.innerHTML = originalButtonHtml;
                 buttonElement.className = originalClasses.join(' ');
-            }, 2500);
+            }, 2000); // 失败提示显示2秒
         }
         return;
     }
@@ -157,32 +139,23 @@ function downloadFile(content, filename, buttonElement, originalButtonHtml, mime
         document.body.removeChild(link);
         URL.revokeObjectURL(link.href);
         
-        // 下载成功通常由浏览器本身处理，按钮UI不强制改变。
-        // 如果需要，可以像复制成功那样添加一个短暂的成功提示。
-        // 例如:
-        // if (buttonElement && originalButtonHtml) {
-        //     buttonElement.innerHTML = `下载已开始`; // 或者用一个勾号图标
-        //     setTimeout(() => {
-        //         buttonElement.innerHTML = originalButtonHtml;
-        //     }, 2000);
-        // }
+        if (buttonElement && originalButtonHtml) {
+            buttonElement.innerHTML = `<i class="bi bi-file-earmark-arrow-down-fill"></i> 下载成功`;
+            setTimeout(() => {
+                buttonElement.innerHTML = originalButtonHtml;
+            }, 1000); // 成功提示显示1秒
+        }
 
     } catch (e) {
-        console.error("创建下载时出错:", e); // 中文注释
-        // alert("创建下载文件失败: " + e.message); // 中文提示
+        console.error("创建下载时出错:", e);
         if (buttonElement && originalButtonHtml) {
-            buttonElement.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle me-1" viewBox="0 0 16 16">
-                  <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-                  <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
-                </svg>
-                下载失败`; // 中文提示
-            buttonElement.classList.remove('btn-primary', 'btn-secondary');
+            buttonElement.innerHTML = `<i class="bi bi-x-circle"></i> 下载失败`;
+            buttonElement.classList.remove('btn-primary', 'btn-secondary', 'btn-info');
             buttonElement.classList.add('btn-danger');
              setTimeout(() => {
                 buttonElement.innerHTML = originalButtonHtml;
                 if(originalClasses) buttonElement.className = originalClasses.join(' ');
-            }, 2500);
+            }, 2000); // 失败提示显示2秒
         }
     }
 }
@@ -204,31 +177,42 @@ function downloadFile(content, filename, buttonElement, originalButtonHtml, mime
  */
 function displayShareCodesAndActions(data, elements, generateShortCodeChecked) {
     let longShareData = null;
-    elements.actionButtonsAreaElement.style.display = 'block';
+    elements.actionButtonsAreaElement.style.display = 'flex'; // 改为 flex 以应用 action-button-row 样式
+
+    // 总是尝试显示长码按钮和下载按钮，如果 data 中没有 longShareCode，它们在 downloadFile 时会处理
+    if (elements.copyShareCodeBtnElement) elements.copyShareCodeBtnElement.style.display = 'flex'; // flex item
+    if (elements.downloadShareCodeBtnElement) elements.downloadShareCodeBtnElement.style.display = 'flex'; // flex item
 
     if (data.longShareCode) {
         longShareData = data.longShareCode;
         if (elements.shareCodeOutputElement) elements.shareCodeOutputElement.value = longShareData;
         if (elements.longShareCodeAreaElement) elements.longShareCodeAreaElement.style.display = 'block';
-        if (elements.copyShareCodeBtnElement) elements.copyShareCodeBtnElement.style.display = 'block';
-        if (elements.downloadShareCodeBtnElement) elements.downloadShareCodeBtnElement.style.display = 'block';
     } else {
-        // 如果没有长分享码，则隐藏长分享码相关的所有UI
+        // 如果没有长分享码，则隐藏文本区域，但按钮可能仍可见（由上面逻辑决定，或在 downloadFile 中处理）
         if (elements.longShareCodeAreaElement) elements.longShareCodeAreaElement.style.display = 'none';
-        if (elements.copyShareCodeBtnElement) elements.copyShareCodeBtnElement.style.display = 'none';
-        if (elements.downloadShareCodeBtnElement) elements.downloadShareCodeBtnElement.style.display = 'none';
+        // 也可能需要禁用按钮或改变其文本
+        // if (elements.copyShareCodeBtnElement) elements.copyShareCodeBtnElement.disabled = true;
+        // if (elements.downloadShareCodeBtnElement) elements.downloadShareCodeBtnElement.disabled = true;
     }
 
-    // 根据 generateShortCodeChecked 参数决定是否显示短码相关UI
     if (generateShortCodeChecked && data.shortShareCode) {
         if (elements.shortShareCodeOutputElement) elements.shortShareCodeOutputElement.value = data.shortShareCode;
         if (elements.shortShareCodeAreaElement) elements.shortShareCodeAreaElement.style.display = 'block';
-        if (elements.copyShortShareCodeBtnElement) elements.copyShortShareCodeBtnElement.style.display = 'block';
+        if (elements.copyShortShareCodeBtnElement) elements.copyShortShareCodeBtnElement.style.display = 'flex'; // flex item
     } else {
-         // 如果未勾选生成短码，或勾选了但API未返回短码，则隐藏短码相关UI
         if (elements.shortShareCodeAreaElement) elements.shortShareCodeAreaElement.style.display = 'none';
         if (elements.copyShortShareCodeBtnElement) elements.copyShortShareCodeBtnElement.style.display = 'none';
     }
+
+    // 特殊处理：如果只有下载和长码复制，短码按钮隐藏，确保它们仍然能平分宽度
+    // （这部分可以通过CSS的flex-grow来处理，只要按钮是flex项）
+    // 如果只有长码按钮和下载按钮可见
+    const shortBtnVisible = elements.copyShortShareCodeBtnElement && elements.copyShortShareCodeBtnElement.style.display !== 'none';
+    if (!shortBtnVisible) {
+        // 如果短码按钮不可见，长码和下载按钮应该平分空间。
+        // flex-grow: 1 应该已经处理了这一点。
+    }
+
     return longShareData;
 }
 

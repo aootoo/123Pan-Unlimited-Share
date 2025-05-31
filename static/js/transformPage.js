@@ -16,10 +16,12 @@ document.addEventListener('DOMContentLoaded', async function () {
     const toFastLinkActionButtons = document.getElementById('toFastLinkActionButtons');
     const toFL_copyJsonBtn = document.getElementById('toFL_copyJsonBtn');
     const toFL_downloadJsonBtn = document.getElementById('toFL_downloadJsonBtn');
+    const startToFastLinkTransformBtn = document.getElementById('startToFastLinkTransformBtn');
     
     // 存储按钮的原始 HTML 内容，用于恢复
-    const originalToFLCopyBtnHtml = toFL_copyJsonBtn.innerHTML; // HTML已经包含了图标
-    const originalToFLDownloadBtnHtml = toFL_downloadJsonBtn.innerHTML; // HTML已经包含了图标
+    const originalStartToFLBtnHtml = startToFastLinkTransformBtn.innerHTML;
+    const originalToFLCopyBtnHtml = toFL_copyJsonBtn.innerHTML; 
+    const originalToFLDownloadBtnHtml = toFL_downloadJsonBtn.innerHTML; 
 
     // Tab 2: 123FastLink 转 123share
     const fromFastLinkForm = document.getElementById('fromFastLinkForm');
@@ -32,6 +34,9 @@ document.addEventListener('DOMContentLoaded', async function () {
     const fromFastLinkResultArea = document.getElementById('fromFastLinkResultArea');
     const fromFastLinkStatusMessage = document.getElementById('fromFastLinkStatusMessage');
     const fromFastLinkOutputContainer = document.getElementById('fromFastLinkOutputContainer');
+    const startFromFastLinkTransformBtn = document.getElementById('startFromFastLinkTransformBtn');
+
+    const originalStartFromFLBtnHtml = startFromFastLinkTransformBtn.innerHTML;
 
     const API_TO_FASTLINK_URL = window.APP_CONFIG.apiToFastLinkUrl;
     const API_FROM_FASTLINK_URL = window.APP_CONFIG.apiFromFastLinkUrl;
@@ -47,7 +52,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             if (file) {
                 if (!file.name.toLowerCase().endsWith('.123share')) {
                     updateStatusMessage(toFastLinkStatusMessage, '错误: 请选择一个有效的 .123share 文件。', 'danger');
-                    toFastLinkStatusMessage.style.display = 'block'; // 确保状态消息可见
+                    toFastLinkStatusMessage.style.display = 'block'; 
                     toFL_shareFileInput.value = '';
                     return;
                 }
@@ -58,12 +63,12 @@ document.addEventListener('DOMContentLoaded', async function () {
                 reader.onload = function (e) {
                     toFL_shareCodeTextarea.value = e.target.result;
                     updateStatusMessage(toFastLinkStatusMessage, `已成功加载文件: ${escapeHtml(file.name)}`, 'success');
-                    toFastLinkStatusMessage.style.display = 'block'; // 确保状态消息可见
+                    toFastLinkStatusMessage.style.display = 'block'; 
                 };
                 reader.onerror = function (e) {
                     console.error("读取.123share文件时出错:", e);
                     updateStatusMessage(toFastLinkStatusMessage, `错误: 读取文件 ${escapeHtml(file.name)} 失败。`, 'danger');
-                    toFastLinkStatusMessage.style.display = 'block'; // 确保状态消息可见
+                    toFastLinkStatusMessage.style.display = 'block'; 
                 };
                 reader.readAsText(file, 'UTF-8');
                 toFL_shareFileInput.value = ''; 
@@ -77,7 +82,11 @@ document.addEventListener('DOMContentLoaded', async function () {
         toFastLinkActionButtons.style.display = 'none';
         toFastLinkJsonOutputTextarea.value = '';
         updateStatusMessage(toFastLinkStatusMessage, '转换中，请稍候...', 'info');
-        toFastLinkStatusMessage.style.display = 'block'; // 确保状态消息可见
+        toFastLinkStatusMessage.style.display = 'block'; 
+
+        // 更新开始转换按钮状态
+        startToFastLinkTransformBtn.disabled = true;
+        startToFastLinkTransformBtn.innerHTML = `<i class="bi bi-hourglass-split"></i>处理中...`;
 
         const payload = {
             shareCode: toFL_shareCodeTextarea.value,
@@ -104,11 +113,15 @@ document.addEventListener('DOMContentLoaded', async function () {
             console.error('转换到123FastLink API请求错误:', error);
             toFastLinkJsonOutputTextarea.value = `请求错误: ${error.message}`;
             updateStatusMessage(toFastLinkStatusMessage, '转换请求失败。', 'danger');
+        } finally {
+            // 恢复按钮状态
+            startToFastLinkTransformBtn.innerHTML = originalStartToFLBtnHtml;
+            startToFastLinkTransformBtn.disabled = false;
         }
     });
 
-    toFL_copyJsonBtn.addEventListener('click', function() {
-        copyToClipboard(toFastLinkJsonOutputTextarea, toFL_copyJsonBtn, '已复制!', originalToFLCopyBtnHtml);
+    toFL_copyJsonBtn.addEventListener('click', function() { 
+        copyToClipboard(toFastLinkJsonOutputTextarea, toFL_copyJsonBtn, `<i class="bi bi-clipboard-check"></i>复制成功`, originalToFLCopyBtnHtml);
     });
 
     toFL_downloadJsonBtn.addEventListener('click', function() {
@@ -128,7 +141,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             if (file) {
                 if (!file.name.toLowerCase().endsWith('.json')) {
                     updateStatusMessage(fromFastLinkStatusMessage, '错误: 请选择一个有效的 .json 文件。', 'danger');
-                    fromFastLinkStatusMessage.style.display = 'block'; // 确保状态消息可见
+                    fromFastLinkStatusMessage.style.display = 'block'; 
                     fromFL_jsonFileInput.value = '';
                     return;
                 }
@@ -144,18 +157,18 @@ document.addEventListener('DOMContentLoaded', async function () {
                             fromFL_rootFolderNameInput.value = '';
                         }
                         updateStatusMessage(fromFastLinkStatusMessage, `已成功加载并解析文件: ${escapeHtml(file.name)}。commonPath已自动填充。`, 'success');
-                        fromFastLinkStatusMessage.style.display = 'block'; // 确保状态消息可见
+                        fromFastLinkStatusMessage.style.display = 'block'; 
                     } catch (parseError) {
                         console.error("解析.json文件内容时出错:", parseError);
                         updateStatusMessage(fromFastLinkStatusMessage, `错误: 文件 ${escapeHtml(file.name)} 不是有效的JSON格式。`, 'danger');
-                        fromFastLinkStatusMessage.style.display = 'block'; // 确保状态消息可见
+                        fromFastLinkStatusMessage.style.display = 'block'; 
                         fromFL_rootFolderNameInput.value = '';
                     }
                 };
                 reader.onerror = function(e) {
                     console.error("读取.json文件时出错:", e);
                     updateStatusMessage(fromFastLinkStatusMessage, `错误: 读取文件 ${escapeHtml(file.name)} 失败。`, 'danger');
-                    fromFastLinkStatusMessage.style.display = 'block'; // 确保状态消息可见
+                    fromFastLinkStatusMessage.style.display = 'block'; 
                 };
                 reader.readAsText(file, 'UTF-8');
                 fromFL_jsonFileInput.value = '';
@@ -171,16 +184,17 @@ document.addEventListener('DOMContentLoaded', async function () {
             fromFL_generateShortCodeCheckbox.disabled = false;
         }
     });
-    // 为了确保 generateShortCode 和 shareProject 的联动正确，也给 fromFL_generateShortCodeCheckbox 添加监听
-    // 但由于shareProject的逻辑是如果它勾选，generateShortCode必须勾选且禁用，所以上述逻辑已覆盖。
-    // 如果需要双向联动（例如取消generateShortCode时，shareProject也取消），则需要额外逻辑，但目前需求是单向的。
 
-            fromFastLinkForm.addEventListener('submit', async function(event) {
+    fromFastLinkForm.addEventListener('submit', async function(event) {
         event.preventDefault();
         fromFastLinkResultArea.style.display = 'block';
         fromFastLinkOutputContainer.innerHTML = '';
         updateStatusMessage(fromFastLinkStatusMessage, '转换中，请稍候...', 'info');
         fromFastLinkStatusMessage.style.display = 'block';
+
+        // 更新开始转换按钮状态
+        startFromFastLinkTransformBtn.disabled = true;
+        startFromFastLinkTransformBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>处理中...';
 
         const rootFolderNameByUser = fromFL_rootFolderNameInput.value.trim();
         let fastLinkJsonString = fromFL_jsonDataTextarea.value;
@@ -199,6 +213,9 @@ document.addEventListener('DOMContentLoaded', async function () {
             fastLinkJsonString = JSON.stringify(fastLinkJsonData);
         } catch (e) {
             updateStatusMessage(fromFastLinkStatusMessage, '输入的Json数据格式无效。', 'danger');
+            // 恢复按钮状态因为校验失败提前返回
+            startFromFastLinkTransformBtn.innerHTML = originalStartFromFLBtnHtml; 
+            startFromFastLinkTransformBtn.disabled = false;
             return;
         }
         
@@ -228,51 +245,45 @@ document.addEventListener('DOMContentLoaded', async function () {
                         resultItemDiv.appendChild(title);
 
                         const buttonRow = document.createElement('div');
-                        buttonRow.classList.add('action-button-row'); // 应用flex容器类
+                        buttonRow.classList.add('action-button-row'); 
 
-                        // 长分享码按钮
                         const copyLongBtn = document.createElement('button');
                         copyLongBtn.type = 'button';
-                        // 应用 custom-btn 和颜色类
                         copyLongBtn.classList.add('btn', 'custom-btn', 'btn-secondary'); 
-                        copyLongBtn.innerHTML = `<i class="bi bi-clipboard me-2"></i>复制长分享码`; // me-2 用于图标和文字间距
-                        const originalCopyLongText = copyLongBtn.innerHTML;
+                        const originalCopyLongText = `<i class="bi bi-clipboard me-2"></i>复制长码`;
+                        copyLongBtn.innerHTML = originalCopyLongText;
                         const longCodeForCopy = item.longShareCode;
                         copyLongBtn.addEventListener('click', function() {
                             const tempTextarea = document.createElement('textarea');
                             tempTextarea.value = longCodeForCopy;
                             document.body.appendChild(tempTextarea);
-                            copyToClipboard(tempTextarea, this, '已复制!', originalCopyLongText);
+                            copyToClipboard(tempTextarea, this, `<i class="bi bi-clipboard-check me-2"></i>复制成功`, originalCopyLongText);
                             document.body.removeChild(tempTextarea);
                         });
                         buttonRow.appendChild(copyLongBtn);
 
-                        // 短分享码按钮 (如果存在)
                         if (item.shortShareCode) {
                             const copyShortBtn = document.createElement('button');
                             copyShortBtn.type = 'button';
-                            // 应用 custom-btn 和颜色类
                             copyShortBtn.classList.add('btn', 'custom-btn', 'btn-info'); 
-                            copyShortBtn.innerHTML = `<i class="bi bi-clipboard-check me-2"></i>复制短分享码`; // me-2
-                            const originalCopyShortText = copyShortBtn.innerHTML;
+                            const originalCopyShortText = `<i class="bi bi-clipboard me-2"></i>复制短码`;
+                            copyShortBtn.innerHTML = originalCopyShortText;
                             const shortCodeForCopy = item.shortShareCode;
                             copyShortBtn.addEventListener('click', function() {
                                 const tempTextarea = document.createElement('textarea');
                                 tempTextarea.value = shortCodeForCopy;
                                 document.body.appendChild(tempTextarea);
-                                copyToClipboard(tempTextarea, this, '已复制!', originalCopyShortText);
+                                copyToClipboard(tempTextarea, this, `<i class="bi bi-clipboard-check me-2"></i>复制成功`, originalCopyShortText);
                                 document.body.removeChild(tempTextarea);
                             });
                             buttonRow.appendChild(copyShortBtn);
                         }
                         
-                        // 下载按钮
                         const downloadBtn = document.createElement('button');
                         downloadBtn.type = 'button';
-                        // 应用 custom-btn 和颜色类
                         downloadBtn.classList.add('btn', 'custom-btn', 'btn-primary'); 
-                        downloadBtn.innerHTML = `<i class="bi bi-download me-2"></i>下载 .123share 文件`; // me-2
-                        const originalDownloadText = downloadBtn.innerHTML;
+                        const originalDownloadText = `<i class="bi bi-file-earmark-arrow-down me-2"></i>下载文件`;
+                        downloadBtn.innerHTML = originalDownloadText;
                         const shareCodeForDownload = item.longShareCode;
                         const filenameForDownload = `${item.rootFolderName}.123share`.replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, '_');
                         downloadBtn.addEventListener('click', function() {
@@ -296,6 +307,10 @@ document.addEventListener('DOMContentLoaded', async function () {
             console.error('从123FastLink转换API请求错误:', error);
             updateStatusMessage(fromFastLinkStatusMessage, '转换请求失败。', 'danger');
              fromFastLinkOutputContainer.innerHTML = `<div class="alert alert-danger">请求错误: ${escapeHtml(error.message)}</div>`;
+        } finally {
+            // 恢复按钮状态
+            startFromFastLinkTransformBtn.innerHTML = originalStartFromFLBtnHtml;
+            startFromFastLinkTransformBtn.disabled = false;
         }
     });
 
@@ -304,12 +319,12 @@ document.addEventListener('DOMContentLoaded', async function () {
             toFastLinkStatusMessage.style.display = 'none';
             toFastLinkResultArea.style.display = 'none';
             toFastLinkJsonOutputTextarea.value = '';
-            if(toFL_shareFileInput) toFL_shareFileInput.value = ''; // 确保存在
+            if(toFL_shareFileInput) toFL_shareFileInput.value = ''; 
 
             fromFastLinkStatusMessage.style.display = 'none';
             fromFastLinkResultArea.style.display = 'none';
             fromFastLinkOutputContainer.innerHTML = '';
-            if(fromFL_jsonFileInput) fromFL_jsonFileInput.value = ''; // 确保存在
+            if(fromFL_jsonFileInput) fromFL_jsonFileInput.value = ''; 
         });
     });
 });

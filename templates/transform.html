@@ -25,22 +25,6 @@
             word-break: break-all;
             font-size: 0.9em;
         }
-        .action-button-row {
-            display: flex;
-            gap: 10px; 
-            margin-top: 10px;
-            /* 高度将由内部按钮的 custom-btn 类来决定，确保与主操作按钮一致 */
-        }
-        .action-button-row .btn { /* 这个选择器将应用于该行内的所有按钮 */
-            flex-grow: 1; 
-            display: flex; 
-            align-items: center;
-            justify-content: center;
-            /* custom-btn 类应该已经处理了高度相关的 padding 和 font-size */
-            /* 如果需要强制与特定的 "开始转换" 按钮高度一致，可以在这里覆盖 padding, */
-            /* 但通常保持 custom-btn 的一致性更好 */
-            /* 例如: padding-top: 0.9rem; padding-bottom: 0.9rem; font-size: 1.05rem; */
-        }
 
         /* 修复 btn-info 悬停颜色问题 */
         .btn.btn-info.custom-btn:hover,
@@ -96,7 +80,9 @@
                             <label for="toFL_shareCode" class="form-label">123share 长分享码 (Base64)</label>
                             <textarea class="form-control" id="toFL_shareCode" name="toFL_shareCode" rows="5" required placeholder="粘贴 .123share 文件内容"></textarea>
                         </div>
-                        <button type="submit" class="btn btn-primary custom-btn w-100">开始转换</button>
+                        <button type="submit" id="startToFastLinkTransformBtn" class="btn btn-primary custom-btn w-100">
+                            <i class="bi bi-gear"></i>开始转换
+                        </button>
                     </form>
                     <div id="toFastLinkResultArea" class="mt-4" style="display: none;">
                         <h5 class="mb-3">转换结果:</h5>
@@ -104,10 +90,10 @@
                         <textarea id="toFastLinkJsonOutput" class="form-control textarea-result" rows="10" readonly></textarea>
                         <div id="toFastLinkActionButtons" class="action-button-row mt-2" style="display: none;">
                             <button id="toFL_copyJsonBtn" type="button" class="btn btn-secondary custom-btn">
-                                <i class="bi bi-clipboard me-2"></i>复制Json数据
+                                <i class="bi bi-clipboard me-2"></i>复制数据
                             </button>
                             <button id="toFL_downloadJsonBtn" type="button" class="btn btn-primary custom-btn">
-                                <i class="bi bi-download me-2"></i>下载Json文件
+                                <i class="bi bi-file-earmark-arrow-down me-2"></i>下载文件
                             </button>
                         </div>
                     </div>
@@ -146,7 +132,9 @@
                             <div class="form-text">勾选后，每个转换生成的分享资源都将提交审核，通过后会对所有用户公开可见。</div>
                             <div class="form-text">勾选本项将强制勾选“生成短分享码”。如果 `根目录名` 为空且JSON产生多个分享，则每个分享都需审核。</div>
                         </div>
-                        <button type="submit" class="btn btn-primary custom-btn w-100">开始转换</button>
+                        <button type="submit" id="startFromFastLinkTransformBtn" class="btn btn-primary custom-btn w-100">
+                            <i class="bi bi-gear"></i>开始转换
+                        </button>
                     </form>
                      <div id="fromFastLinkResultArea" class="mt-4" style="display: none;">
                         <h5 class="mb-3">转换结果:</h5>

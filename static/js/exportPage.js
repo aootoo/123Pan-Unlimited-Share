@@ -23,6 +23,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     const generateShortCodeCheckbox = document.getElementById('generateShortCode');
     const shareProjectCheckbox = document.getElementById('shareProject');
 
+    const startExportBtn = document.getElementById('startExportBtn'); // 获取开始导出按钮
+
     // 从全局配置或 data-* 属性获取 API URL
     const API_EXPORT_URL = window.APP_CONFIG.apiExportUrl || '/api/export'; 
 
@@ -30,9 +32,10 @@ document.addEventListener('DOMContentLoaded', async function () {
     let currentFilename = "exported_data.123share";
     
     // 存储按钮的原始 HTML 内容，用于恢复
-    const originalCopyShortBtnHtml = copyShortShareCodeBtn.innerHTML;
-    const originalCopyLongBtnHtml = copyShareCodeBtn.innerHTML;
-    const originalDownloadBtnHtml = downloadShareCodeBtn.innerHTML;
+    const originalStartExportBtnHtml = startExportBtn.innerHTML;
+    let originalCopyShortBtnHtml = ''; 
+    let originalCopyLongBtnHtml = '';
+    let originalDownloadBtnHtml = '';
 
     // UI元素集合，方便传递给通用函数
     const uiElements = {
@@ -71,16 +74,23 @@ document.addEventListener('DOMContentLoaded', async function () {
         resetResultDisplay(uiElements);
         currentLongShareData = null;
 
+        // 更新开始导出按钮状态：立即禁用并改变文字/图标
+        startExportBtn.disabled = true;
+        startExportBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>处理中...';
+
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
         const userSpecifiedBaseNameValue = userSpecifiedBaseNameInput.value.trim();
         const homeFilePath = document.getElementById('homeFilePath').value;
-        const generateShortCode = generateShortCodeCheckbox.checked; // 获取当前复选框状态
+        const generateShortCode = generateShortCodeCheckbox.checked; 
         const shareProject = shareProjectCheckbox.checked;
 
         if (shareProject && !userSpecifiedBaseNameValue) {
-            updateStatusMessage(statusMessageEl, '错误: 加入资源共享计划时，必须填写根目录名 (分享名)。', 'danger'); // 中文提示
+            updateStatusMessage(statusMessageEl, '错误: 加入资源共享计划时，必须填写根目录名 (分享名)。', 'danger'); 
             userSpecifiedBaseNameInput.focus();
+            // 恢复按钮状态因为校验失败提前返回
+            startExportBtn.innerHTML = originalStartExportBtnHtml; 
+            startExportBtn.disabled = false;
             return;
         }
 
@@ -110,30 +120,41 @@ document.addEventListener('DOMContentLoaded', async function () {
             statusElement: statusMessageEl,
             logElement: logOutputEl,
             callbacks: {
-                onSuccess: function(data) { // data 是从API返回的JSON对象
-                    // 调用 displayShareCodesAndActions 并传递 generateShortCode 的状态
+                onSuccess: function(data) { 
                     currentLongShareData = displayShareCodesAndActions(data, uiElements, generateShortCode);
+                    if (copyShortShareCodeBtn.style.display !== 'none') {
+                        originalCopyShortBtnHtml = copyShortShareCodeBtn.innerHTML;
+                    }
+                    if (copyShareCodeBtn.style.display !== 'none') {
+                        originalCopyLongBtnHtml = copyShareCodeBtn.innerHTML;
+                    }
+                    if (downloadShareCodeBtn.style.display !== 'none') {
+                        originalDownloadBtnHtml = downloadShareCodeBtn.innerHTML;
+                    }
                 },
                 onFailure: function(message) {
                     // 状态已由 streamApiHandler 更新
                 },
                 onRequestError: function(error) {
                      // 状态已由 streamApiHandler 更新
+                },
+                onStreamEnd: function() { // 流结束后，无论成功失败都确保按钮恢复
+                    startExportBtn.innerHTML = originalStartExportBtnHtml;
+                    startExportBtn.disabled = false;
                 }
             }
         });
     });
 
     downloadShareCodeBtn.addEventListener('click', function() {
-        // 调用 downloadFile 时传递按钮元素和原始HTML
         downloadFile(currentLongShareData, currentFilename, downloadShareCodeBtn, originalDownloadBtnHtml);
     });
 
     copyShareCodeBtn.addEventListener('click', function() {
-        copyToClipboard(shareCodeOutputEl, copyShareCodeBtn, '已复制!', originalCopyLongBtnHtml); // 中文提示
+        copyToClipboard(shareCodeOutputEl, copyShareCodeBtn, `<i class="bi bi-clipboard-check"></i>复制成功`, originalCopyLongBtnHtml);
     });
             
     copyShortShareCodeBtn.addEventListener('click', function() {
-        copyToClipboard(shortShareCodeOutputEl, copyShortShareCodeBtn, '已复制!', originalCopyShortBtnHtml); // 中文提示
+        copyToClipboard(shortShareCodeOutputEl, copyShortShareCodeBtn, `<i class="bi bi-clipboard-check"></i>复制成功`, originalCopyShortBtnHtml);
     });
 });
