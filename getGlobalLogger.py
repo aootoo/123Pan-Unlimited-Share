@@ -40,11 +40,12 @@ def setup_logger():
             print(f"[getGlobalLogger.py - ERROR] 无法创建日志目录 '{log_dir}': {e}。文件日志将不可用。")
     
     # 使用应用启动时的时间生成日志文件名
-    current_time_for_logfile = time.strftime('%Y-%m-%d-%H-%M-%S')
+    # current_time_for_logfile = time.strftime('%Y-%m-%d-%H-%M-%S')
+    current_time_for_logfile = time.strftime('%Y-%m-%d')
     log_filename = os.path.join(log_dir, f"{current_time_for_logfile}.log")
     try:
         # 每个文件 10MB
-        file_handler = RotatingFileHandler(log_filename, maxBytes=10*1024*1024, encoding='utf-8')
+        file_handler = RotatingFileHandler(log_filename, encoding='utf-8')
         file_handler.setLevel(log_level) # 文件处理器遵循配置的日志级别
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
