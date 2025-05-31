@@ -2,7 +2,7 @@
 // @name         123云盘秒传链接（with 123Pan-Unlimited-Share）
 // @namespace    http://tampermonkey.net/
 // @version      v1.3.1-mod-v1
-// @description  相较于原版本，增加了公共资源库。重要提示：由于作者不会写Tampermonkey脚本，本脚本由AI生成，作者不保证后续维护的及时性
+// @description  相较于原版本，增加了公共资源库和资源共享计划。重要提示：由于作者不会写Tampermonkey脚本，本脚本由AI生成，作者不保证后续维护的及时性。
 // @author        Gemini
 // @match        *://*.123pan.com/*
 // @match        *://*.123pan.cn/*
@@ -15,8 +15,8 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_xmlhttpRequest
-// @downloadURL https://update.greasyfork.org/scripts/536660/123%E4%BA%91%E7%9B%98%E7%A7%92%E4%BC%A0%E9%93%BE%E6%8E%A5.user.js
-// @updateURL https://update.greasyfork.org/scripts/536660/123%E4%BA%91%E7%9B%98%E7%A7%92%E4%BC%A0%E9%93%BE%E6%8E%A5.meta.js
+// @downloadURL https://ghfast.top/https://raw.githubusercontent.com/realcwj/123Pan-Unlimited-Share/refs/heads/main/Tampermonkey.js
+// @updateURL https://ghfast.top/https://raw.githubusercontent.com/realcwj/123Pan-Unlimited-Share/refs/heads/main/Tampermonkey.js
 // ==/UserScript==
 
 (function() {
@@ -1254,7 +1254,8 @@
             const currentUrl = publicRepoApiHelper.getBaseUrl();
             const content = `
                 <p style="text-align:left; font-size:0.9em; margin-bottom:8px;">请输入公共资源库服务器的 Base URL (链接必须以 http/https 开头，并以 / 结尾)。</p>
-                <input type="url" id="fl-m-public-repo-url" class="fastlink-modal-input" value="${currentUrl}" placeholder="例如: http://your-server.com/api/">
+                <p style="text-align:left; font-size:0.9em; margin-bottom:8px; color: red;">如何搭建服务器？请看部署教程：<br>https://github.com/realcwj/123Pan-Unlimited-Share?tab=readme-ov-file#如何使用</p>
+                <input type="url" id="fl-m-public-repo-url" class="fastlink-modal-input" value="${currentUrl}" placeholder="例如: http://your-server.com/">
                 <p id="fl-m-public-repo-url-status" style="font-size:0.8em; color:red; min-height:1em;"></p>
             `;
             this.showModal("⚙️ 公共资源库服务器设置", content, 'publicRepoSettings');
@@ -1581,7 +1582,7 @@
                 htmlContent += `<div class="submit-to-public-repo-container">
                                   <label for="fl-m-public-repo-sharename">分享名:</label>
                                   <input type="text" id="fl-m-public-repo-sharename" class="fastlink-modal-input" value="${jsonDataForExport && jsonDataForExport.commonPath ? jsonDataForExport.commonPath.replace(/\/$/, '') : ''}">
-                                  <p class="hint">若您勾选了多个独立的文件/文件夹，导致该输入框内容为空，请手动填写一个总的分享名，否则会将每个勾选项都视为一个独立的分享。</p>
+                                  <p class="hint"><b>若您勾选了多个独立的文件/文件夹，导致该输入框内容为空，请手动填写一个总的分享名，否则会将每个勾选项都视为一个独立的分享。</b></p>
                                   <button id="fl-m-submit-to-public-repo" class="submit-btn confirm-btn" style="margin-bottom:10px;">⏫ 提交到公共资源库</button>
                                </div>`;
                 if (pureLinkForClipboard || jsonDataForExport) { htmlContent += `<button id="fl-m-copy" class="copy-btn">📋 复制链接</button>`; if (jsonDataForExport) htmlContent += `<button id="fl-m-export-json" class="export-btn">📄 导出为 JSON</button>`; }
