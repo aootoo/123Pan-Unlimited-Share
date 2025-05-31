@@ -182,19 +182,19 @@ def api_admin_update_database_route():
 if __name__ == '__main__':
 
     # 下载最新数据库
-    # 注意, 在服务端使用gunicorn时, 以下代码不会执行 (请到后台管理面板, 手动点击 “更新数据库” 按钮)
-    try:
-        db = Pan123Database(dbpath=DATABASE_PATH)
-        logger.info("正在下载最新数据库...")
-        latest_db_path = db.downloadLatestDatabase()
-        logger.info("正在导入最新数据库...")
-        db.importDatabase(latest_db_path)
-        db.close()
-    except Exception as e:
-        logger.critical(f"数据库更新发生严重错误: {e}", exc_info=True)
-        logger.info("按任意键结束...")
-        input("按任意键结束")
-        exit(0)
+    # 注意：现在更新数据库功能已迁移到 后台管理面板 中
+    # try:
+    #     db = Pan123Database(dbpath=DATABASE_PATH)
+    #     logger.info("正在下载最新数据库...")
+    #     latest_db_path = db.downloadLatestDatabase()
+    #     logger.info("正在导入最新数据库...")
+    #     db.importDatabase(latest_db_path)
+    #     db.close()
+    # except Exception as e:
+    #     logger.critical(f"数据库更新发生严重错误: {e}", exc_info=True)
+    #     logger.info("按任意键结束...")
+    #     input("按任意键结束")
+    #     exit(0)
 
     # 启动Flask应用
     flask_debug_mode = True if loadSettings("LOGGER_LEVEL") == "DEBUG" else False
