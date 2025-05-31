@@ -18,7 +18,7 @@
 ## 安装说明
 
 1. 安装Tampermonkey插件
-2. 点击 [>>> 此处 <<<]([URL_ADDRESS.com/realcwj/123Pan-Unlimited-Share/raw/main/TAMPORMONKEY_TUTORIAL/123Pan%20Unlimited%20Share.user.js](https://raw.githubusercontent.com/realcwj/123Pan-Unlimited-Share/refs/heads/main/Tampermonkey.js)) 下载Tampermonkey脚本
+2. 点击 [>>> 此处 <<<](https://greasyfork.org/zh-CN/scripts/537874-123%E4%BA%91%E7%9B%98%E7%A7%92%E4%BC%A0%E9%93%BE%E6%8E%A5-with-123pan-unlimited-share) 下载Tampermonkey脚本
 3. 安装Tampermonkey脚本
 
 ## 使用说明
