@@ -4,9 +4,10 @@ import time
 import uuid
 
 from getGlobalLogger import logger
+from loadSettings import loadSettings
 
 # 简单的任务超时设置 (秒)
-TASK_QUEUE_TIMEOUT_SECONDS = 10 * 60  # 10分钟超时
+TASK_QUEUE_TIMEOUT_SECONDS = loadSettings("TASK_QUEUE_TIMEOUT_SECONDS")
 
 class TaskQueueManager:
     def __init__(self):
