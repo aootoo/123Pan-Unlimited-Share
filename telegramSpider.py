@@ -240,9 +240,9 @@ def startSpider(channel_name, message_after_id=None, save_interval=10):
             continue
         value["processed"] = True
         # 如果name已经存在, 则跳过
-        if len(db.queryName(rootFolderName=value.get("name"))):
-            logger.info(f"[{key}] 跳过对 '{value.get('name')}' 的导入, 原因：数据库内已同名存在。")
-            continue
+        # if len(db.queryName(rootFolderName=value.get("name"))):
+        #     logger.info(f"[{key}] 跳过对 '{value.get('name')}' 的导入, 原因：数据库内已同名存在。")
+        #     continue
         logger.info(f"[{key}] 尝试导入新增内容: '{value.get('name')}', 链接Key: {value.get('link')}, 密码: {value.get('pwd')}")
         driver = Pan123()
         iter_driver = driver.exportShare(shareKey=value.get("link"), sharePwd=value.get("pwd"), parentFileId=0)
