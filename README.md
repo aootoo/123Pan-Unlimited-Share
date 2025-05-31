@@ -4,9 +4,7 @@
 
 - **2025-05-31**：实验性版本已更新，抢先体验：[>>> 点我访问 <<<](http://222.186.21.40:33333/)
 
-- **2025-05-31**：提示：即将发布：[Release: v2-alpha](https://www.bilibili.com/video/BV1GJ411x7h7)
-
-- **2025-05-27**：自己部署/源代码已发布：[Release: v1-alpha](https://github.com/realcwj/123Pan-Unlimited-Share/releases/tag/v1-alpha)
+- **2025-05-31**：自己部署/源代码已发布：[Release: v2-alpha](https://github.com/realcwj/123Pan-Unlimited-Share/releases/tag/v2-alpha)
 
 ## 免责声明
 
@@ -66,6 +64,8 @@
 
 ## 更新日志（自上而下、由新到旧）
 
+- 发布版本：[Release: v2-alpha](https://github.com/realcwj/123Pan-Unlimited-Share/releases/tag/v2-alpha)
+
 - 更新基于 [123云盘秒传链接](https://greasyfork.org/zh-CN/scripts/536660-123%E4%BA%91%E7%9B%98%E7%A7%92%E4%BC%A0%E9%93%BE%E6%8E%A5) 二次修改的油猴脚本，加入 `公共资源库` 和 `资源共享计划` 功能
 
 - 修复导入分享时，部分文件名包含特殊字符导致上传失败的Bug
@@ -99,8 +99,6 @@
 - 初代版本发布
 
 ## 开发计划
-
-- 【开发中】兼容123云盘秒传油猴JS脚本
 
 - 【排期中】断点续传功能
 
