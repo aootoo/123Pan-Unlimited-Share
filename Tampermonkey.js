@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         123云盘秒传链接（with 123Pan-Unlimited-Share）
 // @namespace    http://tampermonkey.net/
-// @version      v1.3.1-mod-v1
+// @version      v1.3.1-mod-v2
 // @description  相较于原版本，增加了公共资源库和资源共享计划。重要提示：由于作者不会写Tampermonkey脚本，本脚本由AI生成，作者不保证后续维护的及时性。
 // @author        Gemini
 // @match        *://*.123pan.com/*
@@ -45,12 +45,12 @@
         SEARCH_DATABASE: "/api/search_database",
         GET_CONTENT_TREE: "/api/get_content_tree",
         GET_SHARE_CODE: "/api/get_sharecode",
-        SUBMIT_DATABASE: "/api/submit_database", // 虽然文档里是 submit_database, 但要求里是 transform123FastLinkJsonToShareCode，我们用后者
+        SUBMIT_DATABASE: "/api/submit_database",
         TRANSFORM_TO_123FL: "/api/transformShareCodeTo123FastLinkJson",
         TRANSFORM_FROM_123FL: "/api/transform123FastLinkJsonToShareCode"
     };
     const PUBLIC_REPO_BASE_URL_KEY = "fastlink_public_repo_base_url";
-    const DEFAULT_PUBLIC_REPO_BASE_URL = "http://222.186.21.40:33333/";
+    const DEFAULT_PUBLIC_REPO_BASE_URL = "";
 
     const DOM_SELECTORS = {
         TARGET_BUTTON_AREA: '.ant-dropdown-trigger.sysdiv.parmiryButton',
