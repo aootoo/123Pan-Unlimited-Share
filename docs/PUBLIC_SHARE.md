@@ -37,6 +37,8 @@
 
 ### 已导入资源
 
+- [@·无名之辈· 分享的 经典恐怖片合集232部（1TB）](https://www点123684点com/s/oec7Vv-FvYWh?提取码:ZY4K)
+
 - [@Blog post 分享的 2025 动漫](https://www点123865点com/s/u9izjv-rguWv)
 
 - [@·无名之辈· 分享的 音乐大包](https://www点123684点com/s/oec7Vv-4bFWh)
