@@ -345,11 +345,11 @@ if __name__ == "__main__":
     db = Pan123Database(dbpath="./assets/PAN123DATABASE.db")
 
     # 从 ./export 导入文件 (兼容旧版)
-    # db.importShareFiles(folder_path="./export")
+    db.importShareFiles(folder_path="./export")
 
     logger.info("\n\n--- 测试 listData (公开资源) ---\n")
 
-    public_shares, end_page = db.listData(page=100000)
+    public_shares, end_page = db.listData(page=1)
     
     if public_shares:
         for item in public_shares:
