@@ -326,8 +326,6 @@ class Pan123:
 
         yield {"isFinish": None, "message": "正在重建目录结构..."}
         # 先在根目录创建文件夹
-        current_time = time.strftime("%Y%m%d%H%M%S", time.localtime())
-        rootFolderName = f"{rootFolderName}_{current_time}_GitHub@realcwj" # 请尊重作者, 感谢配合!
         rootFolderId = self.createFolder(
             parentFileId = 0,
             folderName = rootFolderName
