@@ -31,7 +31,7 @@ from getGlobalLogger import logger
 if __name__ == "__main__":
     # 模式: "folder" 根据文件夹ID导出, "file:后缀": 根据文件逐个导出
     mode = "folder"
-    # mode = "file:iso"
+    # mode = "file:mp4"
     # 分享链接
     shareKey = ""
     # 分享密码
@@ -107,6 +107,7 @@ if __name__ == "__main__":
                 driver.listShareVisited = {}
                 # print(f"导出 {FileName} (ID: {FileId}) 到 {FileName}.123share")
                 # tqdm 在进度条下面打印进度
+                FileName = FileName.replace("/", "-").replace("\\", "-").replace(":", "-").replace("*", "-").replace("?", "-").replace('"', "-").replace("<", "-").replace(">", "-").replace("|", "-").replace("\n", "").replace("\r", "").replace("\t", "")
                 tqdm.write(f"导出 {FileName} (ID: {FileId}) 到 {fileNamePrefix}{FileName}.123share")
                 if os.path.exists(os.path.join(saveFolderPath, f"{fileNamePrefix}{FileName}.123share")):
                     continue
@@ -147,7 +148,7 @@ if __name__ == "__main__":
                     data = base64.urlsafe_b64encode(data.encode("utf-8")).decode("utf-8")
                     # print(data)
                     # 过滤文件名里的非法字符
-                    sub_file["FileName"] = sub_file["FileName"].replace("/", "-").replace("\\", "-").replace(":", "-").replace("*", "-").replace("?", "-").replace('"', "-").replace("<", "-").replace(">", "-").replace("|", "-").replace("\n", "").replace("\r", "")
+                    sub_file["FileName"] = sub_file["FileName"].replace("/", "-").replace("\\", "-").replace(":", "-").replace("*", "-").replace("?", "-").replace('"', "-").replace("<", "-").replace(">", "-").replace("|", "-").replace("\n", "").replace("\r", "").replace("\t", "")
                     # 过滤最大文件名长度
                     if len(sub_file["FileName"]) > 200:
                         sub_file["FileName"] = sub_file["FileName"][:190] + "..."

@@ -15,7 +15,7 @@
 
 - **请不要将本资源库中的文件用于商业用途**
 
-- 如果有人二次收费，请各位提 GitHub Issues 告知，我会把他挂出来，大家一起骂他。
+- Tampermonkey脚本里的公共资源库服务器地址，请参考 [123云盘无限制分享工具（Tampermonkey脚本文档）](./TAMPERMONKEY_TUTORIAL.md)
 
 ## 前言
 
@@ -37,23 +37,51 @@
 
 ### 已导入资源
 
-- [@·无名之辈· 分享的 经典恐怖片合集232部（1TB）](https://www点123684点com/s/oec7Vv-FvYWh?提取码:ZY4K)
+- [cokey2 分享的 广播剧500G【整合版】完结 【下】](https://www点123865点com/s/OFYPTd-IzKRA)
 
-- [@Blog post 分享的 2025 动漫](https://www点123865点com/s/u9izjv-rguWv)
+- [cokey2 分享的 广播剧 500G【整合版】完结 【上】](https://www点123865点com/s/OFYPTd-JzKRA)
 
-- [@·无名之辈· 分享的 音乐大包](https://www点123684点com/s/oec7Vv-4bFWh)
+- [cokey2 分享的 得到专题音频+pdf书籍【完整全套】【164GB】](https://www点123865点com/s/OFYPTd-DiKRA)
 
-- [@一笔轻安 分享的 合集](https://www点123865点com/s/gD58Vv-PFmHh)
+- [cokey2 分享的 得到+其他平台14门付费AI课合集【13.2GB】](https://www点123865点com/s/OFYPTd-RiKRA)
 
-- [@一笔轻安 分享的 武林外传](https://www点123865点com/s/gD58Vv-zFmHh)
+- [cokey2 分享的 完结国产动漫合集（4.81T）：TWX开头合集](https://www点123865点com/s/x2rdTd-74lP3)
 
-- [@一笔轻安 分享的 甄嬛传](https://www点123865点com/s/gD58Vv-qFmHh)
+- [cokey2 分享的 完结国产动漫合集（4.81T）：QRS开头合集](https://www点123865点com/s/x2rdTd-S4lP3)
 
-- [@一笔轻安 分享的 日剧合集](https://www点123865点com/s/gD58Vv-xYmHh)
+- [cokey2 分享的 完结国产动漫合集（4.81T）：LMN开头合集](https://www点123865点com/s/x2rdTd-U4lP3)
 
-- [@19********1 分享的 我的天才女友](https://www点123912点com/s/f8NnTd-3L8Ed?提取码:4SI0)
+- [cokey2 分享的 完结国产动漫合集（4.81T）：ABC开头合集](https://www点123865点com/s/x2rdTd-u4lP3)
 
-- [@Ramdisk 分享的 动漫合集](https://www点123684点com/s/3mrrVv-pZpJv)
+- [cokey2 分享的 完结国产动漫合集（4.81T）：YZ开头合集](https://www点123865点com/s/x2rdTd-l4lP3)
+
+- [cokey2 分享的 完结国产动漫合集（4.81T）：HJK开头合集](https://www点123865点com/s/x2rdTd-K4lP3)
+
+- [cokey2 分享的 完结国产动漫合集（4.81T）：DEFG开头合集](https://www点123865点com/s/x2rdTd-04lP3)
+
+- [cokey2 分享的 福建电影制片厂24部合集](https://www点123865点com/s/OFYPTd-wLKRA)
+
+- [cokey2 分享的 儿童电影制片厂17部合集](https://www点123865点com/s/OFYPTd-MLKRA)
+
+- [cokey2 分享的 北京电影制片厂194部大合集](https://www点123865点com/s/OFYPTd-ILKRA)
+
+- [·无名之辈· 分享的 经典恐怖片合集232部（1TB）](https://www点123684点com/s/oec7Vv-FvYWh?提取码:ZY4K)
+
+- [Blog post 分享的 2025 动漫](https://www点123865点com/s/u9izjv-rguWv)
+
+- [·无名之辈· 分享的 音乐大包](https://www点123684点com/s/oec7Vv-4bFWh)
+
+- [一笔轻安 分享的 合集](https://www点123865点com/s/gD58Vv-PFmHh)
+
+- [一笔轻安 分享的 武林外传](https://www点123865点com/s/gD58Vv-zFmHh)
+
+- [一笔轻安 分享的 甄嬛传](https://www点123865点com/s/gD58Vv-qFmHh)
+
+- [一笔轻安 分享的 日剧合集](https://www点123865点com/s/gD58Vv-xYmHh)
+
+- [19********1 分享的 我的天才女友](https://www点123912点com/s/f8NnTd-3L8Ed?提取码:4SI0)
+
+- [Ramdisk 分享的 动漫合集](https://www点123684点com/s/3mrrVv-pZpJv)
 
 - [布丁整理番剧大合集 1-18](https://www点123912点com/s/lyn8Vv-Qcmod?提取码:BDCR)
 
