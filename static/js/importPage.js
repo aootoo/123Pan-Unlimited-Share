@@ -228,7 +228,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                     renderPublicSharesList(data.files, true); 
                     if (isSearchMode) currentPageSearch = page; else currentPublicListPage = page;
                 } else if (page === 1) { 
-                    listDiv.innerHTML = `<p class="text-muted text-center">${isSearchMode ? '没有匹配的搜索结果。' : '暂无公共资源。'}</p>`;
+                    listDiv.innerHTML = `<p class="text-muted text-center">${isSearchMode ? '没有匹配的搜索结果。' : '暂无公共资源。请前往后台管理面板点击“更新数据库”按钮'}</p>`;
                 }
                 if (isSearchMode) { isEndOfSearchResults = data.end; currentPageToUpdate = currentSearchPage = page; }
                 else { isEndOfPublicList = data.end; currentPageToUpdate = currentPublicListPage = page; }

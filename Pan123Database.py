@@ -15,9 +15,9 @@ class Pan123Database:
             os.makedirs(db_dir, exist_ok=True)
         
         # 如果数据库文件不存在, 则下载最新数据库
-        if not os.path.exists(dbpath):
-            logger.info(f"数据库文件 {dbpath} 不存在，尝试下载最新数据库。")
-            dbpath = self.downloadLatestDatabase(dbpath)
+        # if not os.path.exists(dbpath):
+        #     logger.info(f"数据库文件 {dbpath} 不存在，尝试下载最新数据库。")
+        #     dbpath = self.downloadLatestDatabase(dbpath)
         
         # 验证数据库文件
         self.conn = sqlite3.connect(dbpath, check_same_thread=False)
