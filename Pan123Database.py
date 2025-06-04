@@ -145,38 +145,6 @@ class Pan123Database:
             logger.error(f"插入数据失败 (codeHash={codeHash}): {e}", exc_info=True)
             return False
 
-    def queryHash(self, codeHash:str):
-        self.database.execute(
-            "SELECT codeHash, rootFolderName, visibleFlag, shareCode, timeStamp FROM PAN123DATABASE WHERE codeHash=?",
-            (codeHash,)
-            )
-        result = []
-        for codeHash, rootFolderName, visibleFlag, shareCode, timeStamp in self.database.fetchall():
-            result.append((
-                codeHash,
-                rootFolderName,
-                bool(visibleFlag) if visibleFlag is not None else None, # 不知道为什么，从数据库里读出来的不是bool? 还要额外转一下
-                shareCode,
-                timeStamp 
-            ))
-        return result
-
-    def queryName(self, rootFolderName:str): # 主要用于 telegram_spider 检查重名
-        self.database.execute(
-            "SELECT codeHash, rootFolderName, visibleFlag, shareCode, timeStamp FROM PAN123DATABASE WHERE rootFolderName=?",
-            (rootFolderName,)
-            )
-        result = []
-        for codeHash, rootFolderName, visibleFlag, shareCode, timeStamp in self.database.fetchall():
-            result.append((
-                codeHash,
-                rootFolderName,
-                bool(visibleFlag) if visibleFlag is not None else None, # 不知道为什么，从数据库里读出来的不是bool? 还要额外转一下
-                shareCode,
-                timeStamp
-                ))
-        return result
-
     def getDataByHash(self, codeHash: str):
         self.database.execute(
             "SELECT rootFolderName, shareCode, visibleFlag FROM PAN123DATABASE WHERE codeHash=?",

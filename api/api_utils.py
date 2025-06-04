@@ -50,7 +50,7 @@ def handle_database_storage(code_hash, root_folder_name_cleaned, visible_flag, s
 
     try:
         db_instance = Pan123Database(dbpath=DATABASE_PATH)
-        existing_entry = db_instance.queryHash(code_hash)
+        existing_entry = db_instance.getDataByHash(code_hash)
 
         # 逻辑
         # 现有可见性  新请求       操作                  最终数据库状态
@@ -63,7 +63,7 @@ def handle_database_storage(code_hash, root_folder_name_cleaned, visible_flag, s
         
         if existing_entry:
             message_log.append(f"数据库中已存在具有相同内容的分享 (Hash: {code_hash[:8]}...)。")
-            _eh, existing_root_folder_name, existing_visible_flag, _esc, _ets = existing_entry[0]
+            existing_root_folder_name, _esc, existing_visible_flag = existing_entry[0]
             final_result_code_hash = code_hash # 已存在，短码有效
 
             if is_share_project_request and existing_visible_flag is False:
