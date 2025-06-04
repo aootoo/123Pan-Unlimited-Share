@@ -86,7 +86,7 @@ def _get_icon(file_name: str) -> str:
     elif file_type in ['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', '3gp', 'm4v', 'ogv', 'asf', 'mts', 'm2ts', 'ts']:
         return "🎥"
     elif file_type in ['zip', 'rar', '7z', 'tar', 'gz', 'bz2']:
-        return "🗄️"
+        return "📦"
     else:
         return "📄"
  

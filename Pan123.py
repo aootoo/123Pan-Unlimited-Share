@@ -289,19 +289,24 @@ class Pan123:
         except Exception as e:
             logger.error(f"上传文件请求发生异常 (parentFileId: {parentFileId}, fileName: {fileName}): {e}", exc_info=True)
             return {"isFinish": False, "message": f"上传文件请求发生异常: {e}"}
-    
-    def importFiles(self, base64Data, rootFolderName):
+
+    def importFiles(self, base64Data, rootFolderName, filterIds = []):
         # 读取数据
         yield {"isFinish": None, "message": "正在读取数据..."}
         try:
             files_list = json.loads(base64.urlsafe_b64decode(base64Data))
+
+            # 选择部分文件导入
+            if filterIds:
+                files_list = [item for item in files_list if item.get("FileId") in filterIds]
+
         except Exception as e:
             logger.error(f"importFiles: 读取 base64Data 失败: {e}", exc_info=True)
             yield {"isFinish": False, "message": f"读取数据失败, 报错：{e}"}
         yield {"isFinish": None, "message": "数据读取完成"}
-        
+
         ID_MAP = {} # {原文件夹ID: 新文件夹ID}
-        
+
         yield {"isFinish": None, "message": "正在清洗数据..."}
         # 遍历数据，分类文件夹和文件
         ALL_FOLDERS = []
