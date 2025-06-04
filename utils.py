@@ -92,16 +92,8 @@ def _get_icon(file_name: str) -> str:
  
 # 生成目录树
 # 本函数由 Gemini 2.5 Pro 生成
-def generateContentTree(b64_data_str: str) -> str:
-    """
-    根据输入的JSON字符串数据，生成string格式的目录树。
- 
-    Args:
-        b64_data_str: 包含文件/文件夹信息的base64格式字符串。
- 
-    Returns:
-        一个表示目录树的字符串。
-    """
+def generateContentTree(b64_data_str: str) -> dict:
+    # 0. 解码 base64 数据
     try:
         all_items_list = json.loads(base64.urlsafe_b64decode(b64_data_str).decode("utf-8"))
     except Exception as e:
