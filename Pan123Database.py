@@ -213,48 +213,130 @@ class Pan123Database:
         
         return results, is_end_page
 
-    def searchDataByName(self, search_keyword: str, page: int = 1, visible_flag: bool=True):
+    # 另一种方法: 同时进行 MATCH 搜索和 LIKE 搜索，但是这样速度很慢，暂时注释掉
+    def searchDataByName(self, search_keyword: str, page: int = 1, visible_flag: bool = True):
         # 返回 [(codeHash, rootFolderName, timeStamp), ...], is_end_page
         if page < 1:
             page = 1
         limit = 100
         offset = (page - 1) * limit
         
-        # FTS5 的 MATCH 查询。search_keyword 可以是单个词或多个词。
-        # FTS5 会自动处理空格，将其视为 AND 操作（默认情况下）。
-        # 注意：FTS搜索词的语法可能需要处理特殊字符，但通常直接传递用户输入即可。
-        # 确保只搜索 visibleFlag = 1 (True) 的项。
+        # 为 rootFolderName 的 LIKE 查询准备搜索模式，例如: %keyword%
+        search_keyword_for_like = f"%{search_keyword}%"
         
         try:
-            # 构造计算总数的SQL
+            # 构造计算总记录数的 SQL (使用 CTE 和 UNION)
+            # CTE (Common Table Expression) "MatchedHashes" 用于获取所有唯一匹配的 codeHash
+            # UNION 操作会合并来自 FTS 搜索和 rootFolderName LIKE 搜索的 codeHash，并自动去重
             count_sql = """
-                SELECT COUNT(s.codeHash)
-                FROM PAN123DATABASE_SEARCH s
-                JOIN PAN123DATABASE m ON s.codeHash = m.codeHash
-                WHERE s.searchText MATCH ? AND m.visibleFlag = ?
+                WITH MatchedHashes AS (
+                    SELECT s.codeHash
+                    FROM PAN123DATABASE_SEARCH s
+                    JOIN PAN123DATABASE m_s ON s.codeHash = m_s.codeHash
+                    WHERE s.searchText MATCH ? AND m_s.visibleFlag = ?  /* FTS 搜索并检查可见性 */
+                    UNION
+                    SELECT m_r.codeHash
+                    FROM PAN123DATABASE m_r
+                    WHERE m_r.rootFolderName LIKE ? AND m_r.visibleFlag = ? /* rootFolderName LIKE 搜索并检查可见性 */
+                )
+                SELECT COUNT(*) FROM MatchedHashes;
             """
-            self.database.execute(count_sql, (search_keyword, visible_flag))
-            total_records = self.database.fetchone()[0]
+            # 参数顺序对应SQL中的占位符:
+            # 1. search_keyword (for FTS s.searchText MATCH ?)
+            # 2. visible_flag (for FTS m_s.visibleFlag = ?)
+            # 3. search_keyword_for_like (for LIKE m_r.rootFolderName LIKE ?)
+            # 4. visible_flag (for LIKE m_r.visibleFlag = ?)
+            self.database.execute(count_sql, (search_keyword, visible_flag, search_keyword_for_like, visible_flag))
+            total_records_tuple = self.database.fetchone()
+            total_records = total_records_tuple[0] if total_records_tuple else 0
 
-            # 构造查询数据的SQL
-            # 从FTS表(s)搜索，然后JOIN主表(m)以获取 rootFolderName, timeStamp，并按时间戳排序
-            query_sql = """
-                SELECT s.codeHash, m.rootFolderName, m.timeStamp
-                FROM PAN123DATABASE_SEARCH s
-                JOIN PAN123DATABASE m ON s.codeHash = m.codeHash
-                WHERE s.searchText MATCH ? AND m.visibleFlag = ?
-                ORDER BY m.timeStamp DESC 
-                LIMIT ? OFFSET ?
+            if total_records == 0: # 如果没有匹配的记录，提前返回，避免不必要的查询
+                return [], True
+
+            # 构造查询分页数据的 SQL
+            # 从主表 PAN123DATABASE 中选取数据，其 codeHash 必须存在于 MatchedHashes CTE 中
+            # 结果按照时间戳（timeStamp）降序排列
+            data_sql = """
+                WITH MatchedHashes AS (
+                    SELECT s.codeHash
+                    FROM PAN123DATABASE_SEARCH s
+                    JOIN PAN123DATABASE m_s ON s.codeHash = m_s.codeHash
+                    WHERE s.searchText MATCH ? AND m_s.visibleFlag = ? /* FTS 条件 */
+                    UNION
+                    SELECT m_r.codeHash
+                    FROM PAN123DATABASE m_r
+                    WHERE m_r.rootFolderName LIKE ? AND m_r.visibleFlag = ? /* LIKE 条件 */
+                )
+                SELECT m.codeHash, m.rootFolderName, m.timeStamp
+                FROM PAN123DATABASE m
+                JOIN MatchedHashes mh ON m.codeHash = mh.codeHash /* 确保只获取匹配到的哈希 */
+                ORDER BY m.timeStamp DESC
+                LIMIT ? OFFSET ?;
             """
-            self.database.execute(query_sql, (search_keyword, visible_flag, limit, offset))
+            # 参数顺序对应SQL中的占位符:
+            # 1. search_keyword (for FTS s.searchText MATCH ?)
+            # 2. visible_flag (for FTS m_s.visibleFlag = ?)
+            # 3. search_keyword_for_like (for LIKE m_r.rootFolderName LIKE ?)
+            # 4. visible_flag (for LIKE m_r.visibleFlag = ?)
+            # 5. limit (for LIMIT)
+            # 6. offset (for OFFSET)
+            self.database.execute(data_sql, (search_keyword, visible_flag, search_keyword_for_like, visible_flag, limit, offset))
             results = self.database.fetchall()
 
             is_end_page = (page * limit) >= total_records
             
             return results, is_end_page
-        except Exception as e:
-            logger.error(f"执行 searchDataByName (关键词: '{search_keyword}') 时发生错误: {e}", exc_info=True)
+        except sqlite3.OperationalError as e_op:
+            # 特别处理FTS查询可能引起的OperationalError (比如MATCH语法问题)
+            # 或者其他SQL操作层面的错误
+            logger.error(f"搜索操作失败 (关键词: '{search_keyword}', visible: {visible_flag}): {e_op}", exc_info=True)
+            return [], True # 返回空结果，并标记为最后一页
+        except Exception as e: # 捕获其他所有通用异常
+            logger.error(f"执行 searchDataByName (关键词: '{search_keyword}', visible: {visible_flag}) 时发生未知错误: {e}", exc_info=True)
             return [], True # 发生其他错误也返回空
+
+    # def searchDataByName(self, search_keyword: str, page: int = 1, visible_flag: bool=True):
+    #     # 返回 [(codeHash, rootFolderName, timeStamp), ...], is_end_page
+    #     if page < 1:
+    #         page = 1
+    #     limit = 100
+    #     offset = (page - 1) * limit
+        
+    #     # FTS5 的 MATCH 查询。search_keyword 可以是单个词或多个词。
+    #     # FTS5 会自动处理空格，将其视为 AND 操作（默认情况下）。
+    #     # 注意：FTS搜索词的语法可能需要处理特殊字符，但通常直接传递用户输入即可。
+    #     # 确保只搜索 visibleFlag = 1 (True) 的项。
+        
+    #     try:
+    #         # 构造计算总数的SQL
+    #         count_sql = """
+    #             SELECT COUNT(s.codeHash)
+    #             FROM PAN123DATABASE_SEARCH s
+    #             JOIN PAN123DATABASE m ON s.codeHash = m.codeHash
+    #             WHERE s.searchText MATCH ? AND m.visibleFlag = ?
+    #         """
+    #         self.database.execute(count_sql, (search_keyword, visible_flag))
+    #         total_records = self.database.fetchone()[0]
+
+    #         # 构造查询数据的SQL
+    #         # 从FTS表(s)搜索，然后JOIN主表(m)以获取 rootFolderName, timeStamp，并按时间戳排序
+    #         query_sql = """
+    #             SELECT s.codeHash, m.rootFolderName, m.timeStamp
+    #             FROM PAN123DATABASE_SEARCH s
+    #             JOIN PAN123DATABASE m ON s.codeHash = m.codeHash
+    #             WHERE s.searchText MATCH ? AND m.visibleFlag = ?
+    #             ORDER BY m.timeStamp DESC 
+    #             LIMIT ? OFFSET ?
+    #         """
+    #         self.database.execute(query_sql, (search_keyword, visible_flag, limit, offset))
+    #         results = self.database.fetchall()
+
+    #         is_end_page = (page * limit) >= total_records
+            
+    #         return results, is_end_page
+    #     except Exception as e:
+    #         logger.error(f"执行 searchDataByName (关键词: '{search_keyword}') 时发生错误: {e}", exc_info=True)
+    #         return [], True # 发生其他错误也返回空
 
     def deleteData(self, codeHash:str):
         self.database.execute("SELECT codeHash FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
@@ -401,21 +483,21 @@ if __name__ == "__main__":
     # 从 ./assets/PAN123DATABASE_OLD.db 导入数据
     # db.importDatabase("./assets/PAN123DATABASE_OLD.db")
 
-    logger.info("\n\n--- 测试 listData (公开资源) ---\n")
+    # logger.info("\n\n--- 测试 listData (公开资源) ---\n")
 
-    public_shares, end_page = db.listData(page=1)
+    # public_shares, end_page = db.listData(page=1)
     
-    if public_shares:
-        for item in public_shares:
-            logger.info(str(item))
-    else:
-        logger.info("无公开资源")
+    # if public_shares:
+    #     for item in public_shares:
+    #         logger.info(str(item))
+    # else:
+    #     logger.info("无公开资源")
     
-    print(end_page)
+    # print(end_page)
 
     logger.info("\n\n--- 测试 searchDataByName ---\n")
     
-    search_results, end_page = db.searchDataByName("test", page=1)
+    search_results, end_page = db.searchDataByName("柏林", page=1, visible_flag=True)
 
     if search_results:
         for item in search_results:
