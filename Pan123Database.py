@@ -3,8 +3,7 @@ import os
 import requests
 
 from tqdm import tqdm
-from utils import getStringHash
-
+from utils import getStringHash, getSearchText
 from getGlobalLogger import logger
 
 class Pan123Database:
@@ -14,14 +13,10 @@ class Pan123Database:
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
         
-        # 如果数据库文件不存在, 则下载最新数据库
-        # if not os.path.exists(dbpath):
-        #     logger.info(f"数据库文件 {dbpath} 不存在，尝试下载最新数据库。")
-        #     dbpath = self.downloadLatestDatabase(dbpath)
-        
         # 验证数据库文件
         self.conn = sqlite3.connect(dbpath, check_same_thread=False)
         self.database = self.conn.cursor()
+        
         # 如果是空的, 就创建表:
         # PAN123DATABASE (
         #   codeHash TEXT PRIMARY KEY, -- 分享内容（长码base64）的SHA256哈希值，作为短分享码
@@ -30,6 +25,8 @@ class Pan123Database:
         #   shareCode TEXT,           -- 完整的分享码（即长码base64）
         #   timeStamp DATETIME DEFAULT (datetime('now', '+8 hours')) -- 数据插入时间 (GMT+8: 北京时间)
         # )
+
+        # 创建主表
         self.database.execute("""
             CREATE TABLE IF NOT EXISTS PAN123DATABASE (
                 codeHash TEXT PRIMARY KEY,
@@ -39,6 +36,19 @@ class Pan123Database:
                 timeStamp DATETIME DEFAULT (datetime('now', '+8 hours'))
             )
         """)
+        
+        # 创建 FTS 搜索表 PAN123DATABASE_SEARCH
+        # codeHash 用于关联回主表，UNINDEXED 表示它不参与 FTS 的词汇索引，只是一个普通列
+        # searchText 列将存储 rootFolderName 和所有 filename 的拼接文本，用于全文搜索
+        # tokenize = 'unicode61' 是一个支持多种语言（包括中文单字分割）的较好分词器
+        self.database.execute("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS PAN123DATABASE_SEARCH USING fts5(
+                codeHash UNINDEXED,
+                searchText,
+                tokenize = 'unicode61'
+            )
+        """)
+        
         self.conn.commit()
 
     def importShareFiles(self, folder_path="./share"):
@@ -128,20 +138,36 @@ class Pan123Database:
     def insertData(self, codeHash:str, rootFolderName:str, visibleFlag:bool, shareCode:str):
         # visibleFlag: True: 公开, None: 公开(但是待审核), False: 私密 (仅生成短分享码，不加入公共列表)
         try:
-            # 检查 codeHash 是否已存在, 由调用方 web.py 处理覆写逻辑，这里直接尝试插入
+            # 使用事务确保 PAN123DATABASE 和 PAN123DATABASE_SEARCH 的原子性操作
+            self.conn.execute('BEGIN')
+
+            # 插入主表数据
             self.database.execute(
                 "INSERT INTO PAN123DATABASE (codeHash, rootFolderName, visibleFlag, shareCode) VALUES (?, ?, ?, ?)",
                 (codeHash, rootFolderName, visibleFlag, shareCode)
             )
+            
+            # 准备 searchText 并插入到 PAN123DATABASE_SEARCH 表
+            try:
+                searchText = getSearchText(shareCode, rootFolderName)
+                self.database.execute(
+                    "INSERT INTO PAN123DATABASE_SEARCH (codeHash, searchText) VALUES (?, ?)",
+                    (codeHash, searchText)
+                )
+            except Exception as e_fts:
+                logger.error(f"为 codeHash={codeHash} 生成或插入 searchText 到 FTS表失败: {e_fts}", exc_info=True)
+                self.conn.rollback()
+                return False
+
             self.conn.commit()
-            logger.debug(f"成功插入数据: codeHash={codeHash}, rootFolderName={rootFolderName}, visibleFlag={visibleFlag}")
-            return True # 返回 True 表示插入成功
-        except sqlite3.IntegrityError: # 捕获唯一约束冲突
-            # 这个错误理论上不应该发生，因为 web.py 会先检查和删除（如果需要覆写）
-            # 但如果直接调用此方法且 codeHash 已存在且不是覆写场景，则会到这里
+            logger.debug(f"成功插入数据: codeHash={codeHash}, rootFolderName={rootFolderName}, visibleFlag={visibleFlag}, 并同步到FTS表。")
+            return True
+        except sqlite3.IntegrityError: # 捕获唯一约束冲突 (通常是 codeHash 已存在于 PAN123DATABASE)
+            self.conn.rollback()
             logger.warning(f"插入数据失败: 短分享码 (codeHash): {codeHash} 已存在 (IntegrityError)。")
-            return False # 返回 False 表示因主键冲突插入失败
+            return False
         except Exception as e:
+            self.conn.rollback()
             logger.error(f"插入数据失败 (codeHash={codeHash}): {e}", exc_info=True)
             return False
 
@@ -160,7 +186,7 @@ class Pan123Database:
         
         if len(result):
             logger.debug(f"通过 codeHash '{codeHash}' 查询到数据: rootFolderName='{result[0][0]}', visibleFlag={result[0][2]}") # result[0] 是元组
-            return result # 返回 (rootFolderName, shareCode, visibleFlag)
+            return result # 返回 [(rootFolderName, shareCode, visibleFlag)]
         else:
             logger.debug(f"通过 codeHash '{codeHash}' 未查询到数据")
             return None
@@ -187,41 +213,71 @@ class Pan123Database:
         
         return results, is_end_page
 
-    def searchDataByName(self, rootFolderName: str, page: int = 1):
-        # 根据 rootFolderName 模糊搜索公开的分享 (visibleFlag=True)
+    def searchDataByName(self, search_keyword: str, page: int = 1, visible_flag: bool=True):
         # 返回 [(codeHash, rootFolderName, timeStamp), ...], is_end_page
         if page < 1:
             page = 1
         limit = 100
         offset = (page - 1) * limit
-        search_pattern = f"%{rootFolderName}%"
-
-        # 获取符合搜索条件的总记录数
-        self.database.execute(
-            "SELECT COUNT(*) FROM PAN123DATABASE WHERE rootFolderName LIKE ? AND visibleFlag = 1", # visibleFlag=True
-            (search_pattern,)
-        )
-        total_records = self.database.fetchone()[0]
-
-        self.database.execute(
-            "SELECT codeHash, rootFolderName, timeStamp FROM PAN123DATABASE WHERE rootFolderName LIKE ? AND visibleFlag = 1 ORDER BY timeStamp DESC LIMIT ? OFFSET ?",
-            (search_pattern, limit, offset)
-        )
-        results = self.database.fetchall()
-
-        is_end_page = (page * limit) >= total_records
         
-        return results, is_end_page
+        # FTS5 的 MATCH 查询。search_keyword 可以是单个词或多个词。
+        # FTS5 会自动处理空格，将其视为 AND 操作（默认情况下）。
+        # 注意：FTS搜索词的语法可能需要处理特殊字符，但通常直接传递用户输入即可。
+        # 确保只搜索 visibleFlag = 1 (True) 的项。
+        
+        try:
+            # 构造计算总数的SQL
+            count_sql = """
+                SELECT COUNT(s.codeHash)
+                FROM PAN123DATABASE_SEARCH s
+                JOIN PAN123DATABASE m ON s.codeHash = m.codeHash
+                WHERE s.searchText MATCH ? AND m.visibleFlag = ?
+            """
+            self.database.execute(count_sql, (search_keyword, visible_flag))
+            total_records = self.database.fetchone()[0]
+
+            # 构造查询数据的SQL
+            # 从FTS表(s)搜索，然后JOIN主表(m)以获取 rootFolderName, timeStamp，并按时间戳排序
+            query_sql = """
+                SELECT s.codeHash, m.rootFolderName, m.timeStamp
+                FROM PAN123DATABASE_SEARCH s
+                JOIN PAN123DATABASE m ON s.codeHash = m.codeHash
+                WHERE s.searchText MATCH ? AND m.visibleFlag = ?
+                ORDER BY m.timeStamp DESC 
+                LIMIT ? OFFSET ?
+            """
+            self.database.execute(query_sql, (search_keyword, visible_flag, limit, offset))
+            results = self.database.fetchall()
+
+            is_end_page = (page * limit) >= total_records
+            
+            return results, is_end_page
+        except Exception as e:
+            logger.error(f"执行 searchDataByName (关键词: '{search_keyword}') 时发生错误: {e}", exc_info=True)
+            return [], True # 发生其他错误也返回空
 
     def deleteData(self, codeHash:str):
         self.database.execute("SELECT codeHash FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
         if self.database.fetchone() is None:
-            logger.debug(f"尝试删除 codeHash: {codeHash}, 但记录不存在。")
-            return False # False 表示未找到，所以未删除
-        self.database.execute("DELETE FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
-        self.conn.commit()
-        logger.warning(f"已删除 codeHash: {codeHash}") # 高敏感度操作, 用 warning 级别
-        return True # True 表示成功删除
+            logger.debug(f"尝试删除 codeHash: {codeHash}, 但主表记录不存在。")
+            return False
+        try:
+            # 使用事务确保原子性
+            self.conn.execute('BEGIN')
+
+            # 从主表 PAN123DATABASE 删除
+            self.database.execute("DELETE FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
+            
+            # 同时从 FTS 表 PAN123DATABASE_SEARCH 删除
+            self.database.execute("DELETE FROM PAN123DATABASE_SEARCH WHERE codeHash=?", (codeHash,))
+            
+            self.conn.commit() # 提交事务
+            logger.warning(f"已从主表和FTS表删除 codeHash: {codeHash}")
+            return True
+        except Exception as e:
+            self.conn.rollback() # 回滚事务
+            logger.error(f"删除 codeHash={codeHash} 时发生错误: {e}", exc_info=True)
+            return False
 
     def getSharesByStatusPaged(self, status_filter: str, page: int = 1):
         # status_filter: "approved", "pending", "private"
@@ -232,7 +288,6 @@ class Pan123Database:
         offset = (page - 1) * limit
 
         sql_where_clause = ""
-        params = []
 
         if status_filter == "approved":
             sql_where_clause = "WHERE visibleFlag = 1" # True
@@ -250,7 +305,7 @@ class Pan123Database:
 
         query_sql = f"SELECT codeHash, rootFolderName, shareCode, timeStamp, visibleFlag FROM PAN123DATABASE {sql_where_clause} ORDER BY timeStamp DESC LIMIT ? OFFSET ?"
         
-        self.database.execute(query_sql, (limit, offset))
+        self.database.execute(query_sql, (limit, offset)) # LIMIT 和 OFFSET 作为参数
         
         raw_results = self.database.fetchall()
         processed_results = []
@@ -289,17 +344,45 @@ class Pan123Database:
             return False
  
     def updateRootFolderName(self, codeHash: str, newRootFolderName: str):
+        # 更新 rootFolderName 时，需要同步更新 FTS 表中的 searchText
+        # 获取 shareCode 以重新生成 searchText
+        self.database.execute("SELECT shareCode FROM PAN123DATABASE WHERE codeHash=?", (codeHash,))
+        row = self.database.fetchone()
+        if not row:
+            logger.warning(f"无法更新 rootFolderName：未在主表中找到 codeHash: {codeHash}。")
+            return False
+        shareCode = row[0] # 获取旧的 shareCode
+
         try:
+            self.conn.execute('BEGIN') # 开始事务
+
+            # 1. 更新主表 PAN123DATABASE
             self.database.execute("UPDATE PAN123DATABASE SET rootFolderName=? WHERE codeHash=?", (newRootFolderName, codeHash))
-            self.conn.commit()
+            
+            # 检查主表是否真的更新了 (即 codeHash 存在)
             if self.database.rowcount > 0:
-                logger.debug(f"已更新 codeHash: {codeHash} 的 rootFolderName 为 {newRootFolderName}")
+                # 2. 主表更新成功，现在更新 FTS 表 PAN123DATABASE_SEARCH
+                # 重新生成 searchText
+                new_searchText = getSearchText(shareCode, newRootFolderName)
+                
+                # 更新 FTS 表 (先删除再插入)
+                self.database.execute("DELETE FROM PAN123DATABASE_SEARCH WHERE codeHash=?", (codeHash,))
+                self.database.execute(
+                    "INSERT INTO PAN123DATABASE_SEARCH (codeHash, searchText) VALUES (?, ?)",
+                    (codeHash, new_searchText)
+                )
+                
+                self.conn.commit() # 提交事务
+                logger.debug(f"已更新 codeHash: {codeHash} 的 rootFolderName 为 {newRootFolderName}，并同步更新了FTS表。")
                 return True
             else:
-                logger.warning(f"未找到 codeHash: {codeHash}，无法更新 rootFolderName。")
+                # 如果主表更新的 rowcount 为 0，说明 codeHash 不存在，回滚。
+                self.conn.rollback()
+                logger.warning(f"无法更新 rootFolderName：主表中 codeHash: {codeHash} 更新影响行数为0（可能不存在）。")
                 return False
         except Exception as e:
-            logger.error(f"更新 rootFolderName 失败 (codeHash: {codeHash}): {e}", exc_info=True)
+            self.conn.rollback() # 回滚事务
+            logger.error(f"更新 rootFolderName (codeHash: {codeHash}) 或其FTS索引失败: {e}", exc_info=True)
             return False
 
     def close(self):
@@ -313,7 +396,10 @@ if __name__ == "__main__":
     db = Pan123Database(dbpath="./assets/PAN123DATABASE.db")
 
     # 从 ./export 导入文件 (兼容旧版)
-    db.importShareFiles(folder_path="./export")
+    # db.importShareFiles(folder_path="./export")
+    
+    # 从 ./assets/PAN123DATABASE_OLD.db 导入数据
+    # db.importDatabase("./assets/PAN123DATABASE_OLD.db")
 
     logger.info("\n\n--- 测试 listData (公开资源) ---\n")
 
@@ -327,8 +413,16 @@ if __name__ == "__main__":
     
     print(end_page)
 
-    # 测试导入新数据库
-    # new_db_path = "./assets/latest.db"
-    # db.importDatabase(new_db_path)
+    logger.info("\n\n--- 测试 searchDataByName ---\n")
+    
+    search_results, end_page = db.searchDataByName("test", page=1)
+
+    if search_results:
+        for item in search_results:
+            logger.info(str(item))
+    else:
+        logger.info("未找到匹配的资源")
+
+    print(end_page)
 
     db.close()

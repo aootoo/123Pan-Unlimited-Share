@@ -468,3 +468,12 @@ def transform123FastLinkJsonToShareCode(json_dict):
         })
 
     return OUTPUT
+
+def getSearchText(b64data, rootFolderName):
+    result = rootFolderName + " "
+    data = base64.urlsafe_b64decode(b64data).decode("utf-8")
+    data = json.loads(data)
+    for item in data:
+        result += item["FileName"]
+        result += " "
+    return result
