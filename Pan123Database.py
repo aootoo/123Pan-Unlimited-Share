@@ -92,7 +92,7 @@ class Pan123Database:
                 logger.error(f"兼容模式：处理 {filename_base}.123share 时发生错误: {e}", exc_info=True)
 
     def downloadLatestDatabase(self, file_path="./latest.db"):
-        url = 'https://ghfast.top/https://raw.githubusercontent.com/realcwj/123Pan-Unlimited-Share/refs/heads/main/assets/PAN123DATABASE.db' 
+        url = 'https://ghfast.top/https://github.com/realcwj/123Pan-Unlimited-Share/releases/download/database/PAN123DATABASE.db' 
         r = requests.get(url)
         with open(file_path, "wb") as f:
             f.write(r.content)
