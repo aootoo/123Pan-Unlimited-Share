@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const contentTreeDisplayArea = document.getElementById('contentTreeDisplayAreaAdmin'); 
     const bsContentTreeModal = contentTreeModalEl ? new bootstrap.Modal(contentTreeModalEl) : null;
 
-    // 新增：更新数据库按钮
+    // 更新数据库按钮
     const updateDatabaseBtn = document.getElementById('updateDatabaseBtn');
 
     async function fetchAdminApi(endpoint, method = 'GET', body = null) {
@@ -47,15 +47,12 @@ document.addEventListener('DOMContentLoaded', function () {
             const response = await fetch(`${adminApiBase}${endpoint}`, options);
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ message: response.statusText }));
-                // 对于管理员API调用，直接用 alert 提示错误
                 window.alert(`API操作失败 (${response.status}): ${errorData.message}`);
                 throw new Error(`API请求失败 (${response.status}): ${errorData.message}`);
             }
             return await response.json(); 
         } catch (error) {
             console.error(`请求 ${adminApiBase}${endpoint} 失败:`, error);
-            // 如果 fetch 本身失败（如网络问题），错误可能不是 Error 实例，确保消息存在
-            // 对于已通过上面 if (!response.ok) 检查的错误，这里不再重复 alert
             if (!(error instanceof Error && error.message.startsWith('API请求失败'))) {
                  window.alert(`网络或请求错误: ${error.message || '未知错误'}`);
             }
@@ -96,13 +93,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 tab.isEnd = data.end; 
             } else {
-                // fetchAdminApi 应该已经 alert 了错误信息，这里仅更新表格内容
                 if (page === 1 && !append) tab.body.innerHTML = `<tr><td colspan="6" class="text-center text-danger">加载失败: ${escapeHtml(data.message)}</td></tr>`;
                 else if (append) tab.body.insertAdjacentHTML('beforeend', `<tr><td colspan="6" class="text-center text-danger">加载更多失败</td></tr>`);
                 tab.isEnd = true; 
             }
         } catch (error) { 
-            // fetchAdminApi 已经处理了 alert, 这里主要处理UI回退
             if (page === 1 && !append) tab.body.innerHTML = `<tr><td colspan="6" class="text-center text-danger">加载时出现错误</td></tr>`;
             else if (append && tab.body.lastChild && tab.body.lastChild.classList.contains('loading-indicator-row')) {
                 tab.body.lastChild.innerHTML = `<td colspan="6" class="text-center text-danger">加载更多错误</td>`;
@@ -136,7 +131,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 statusBadge = '<span class="badge bg-secondary status-badge">私密</span>';
             }
 
-            // 注意：确保所有动态插入的字符串都经过 escapeHtml 处理
             row.innerHTML = `
                 <td class="codehash-cell">${escapeHtml(share.codeHash)}</td>
                 <td class="root-folder-name-cell">${escapeHtml(share.rootFolderName)}</td>
@@ -167,7 +161,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } else if (visibleFlag === false) { 
             buttons += `<button class="btn btn-info btn-sm update-status-btn" data-newstatus="pending">设为待审</button>`;
         }
-        buttons += `<button class="btn btn-outline-secondary btn-sm view-share-content-tree-btn" data-codehash="${escapeHtml(codeHash)}" data-sharecode="${escapeHtml(shareCode)}" title="查看目录结构"><i class="bi bi-folder2-open"></i></button>`;
+        buttons += `<button class="btn btn-outline-secondary btn-sm view-share-content-tree-btn" data-codehash="${escapeHtml(codeHash)}" data-sharecode="${escapeHtml(shareCode)}" title="查看目录结构"><i class="bi bi-search"></i></button>`;
         buttons += `<button class="btn btn-danger btn-sm delete-share-btn" title="删除"><i class="bi bi-trash"></i></button>`;
         return buttons;
     }
@@ -193,7 +187,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (target.classList.contains('edit-name-btn')) {
             const nameCell = row.querySelector('.root-folder-name-cell');
             const currentName = target.dataset.currentname;
-            // 使用 escapeHtml 确保 currentName 中的特殊字符被正确处理
             nameCell.innerHTML = `
                 <div class="input-group input-group-sm edit-input-group">
                     <input type="text" class="form-control form-control-sm" value="${escapeHtml(currentName)}">
@@ -213,12 +206,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const newName = inputField.value;
             await updateShareName(codeHashFromRow, newName, row); 
         } else if (target.classList.contains('cancel-edit-btn')) {
-            // 如果是取消编辑，重新加载当前tab的第一页数据以恢复所有行
             const currentTabConfig = tabsConfig[activeStatus];
-            // tabConfig.currentPage = 1; // 不再强制重置到第一页，而是刷新当前页或第一页
-            // tabConfig.isEnd = false;
-            // tabConfig.data = [];
-            loadSharesForTab(activeStatus, 1, false); // 简单起见，总是重新加载第一页
+            loadSharesForTab(activeStatus, 1, false);
         } else if (target.classList.contains('update-status-btn')) {
             const newStatus = target.dataset.newstatus;
             await updateShareStatus(codeHashFromRow, newStatus); 
@@ -227,7 +216,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } else if (target.classList.contains('view-share-content-tree-btn')) { 
             const codeHash = target.dataset.codehash;
             const shareCode = target.dataset.sharecode; 
-            if (bsContentTreeModal) { 
+            if (bsContentTreeModal) {
                 fetchAndDisplayContentTree({ codeHash, shareCode }); 
             } else {
                 console.error("目录树模态框未初始化！");
@@ -246,14 +235,12 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             const data = await fetchAdminApi('/update_share_name', 'POST', { codeHash, newName });
             if (data.success) {
-                // alert(data.message); 在 fetchAdminApi 中处理
-                // 重新加载当前标签页的第一页数据
                 tabsConfig[activeStatus].currentPage = 1;
                 tabsConfig[activeStatus].isEnd = false;
                 tabsConfig[activeStatus].data = [];
                 loadSharesForTab(activeStatus, 1, false);
-            } // else fetchAdminApi 已经 alert
-        } catch (error) { /* 错误已由 fetchAdminApi 处理 */ }
+            }
+        } catch (error) {}
     }
 
     async function updateShareStatus(codeHash, newStatus) {
@@ -264,19 +251,14 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             const data = await fetchAdminApi('/update_share_status', 'POST', { codeHash, newStatus });
             if (data.success) {
-                 // alert(data.message); 在 fetchAdminApi 中处理
-                // 重新加载所有标签页的数据，因为状态改变可能导致条目在标签页间移动
                 Object.keys(tabsConfig).forEach(statusKey => {
                     tabsConfig[statusKey].currentPage = 1;
                     tabsConfig[statusKey].isEnd = false;
                     tabsConfig[statusKey].data = [];
-                    // 仅重新加载当前激活的标签页，或者全部重新加载并在切换时生效
-                    if (statusKey === activeStatus) {
-                        loadSharesForTab(statusKey, 1, false);
-                    }
                 });
-            }  // else fetchAdminApi 已经 alert
-        } catch (error) { /* 错误已由 fetchAdminApi 处理 */ }
+                loadSharesForTab(activeStatus, 1, false);
+            }
+        } catch (error) {}
     }
 
     async function deleteShareConfirmation(codeHash) {
@@ -286,14 +268,12 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             const data = await fetchAdminApi('/delete_share', 'POST', { codeHash });
             if (data.success) {
-                // alert(data.message); 在 fetchAdminApi 中处理
-                // 从当前标签页数据中移除，并重新渲染或重新加载第一页
                 tabsConfig[activeStatus].currentPage = 1;
                 tabsConfig[activeStatus].isEnd = false;
                 tabsConfig[activeStatus].data = [];
                 loadSharesForTab(activeStatus, 1, false);
-            } // else fetchAdminApi 已经 alert
-        } catch (error) { /* 错误已由 fetchAdminApi 处理 */ }
+            }
+        } catch (error) {}
     }
 
     copyModalShareCodeBtn.addEventListener('click', function() {
@@ -304,12 +284,9 @@ document.addEventListener('DOMContentLoaded', function () {
         tabLink.addEventListener('shown.bs.tab', function (event) {
             activeStatus = event.target.id.split('-')[0]; 
             const tabConfig = tabsConfig[activeStatus];
-            // 切换标签页时，如果数据为空或未到末尾（意味着可能只是加载了一部分），则重新加载
-            // 如果数据已加载完毕 (isEnd is true)，则不重新加载，除非强制刷新
-            if (tabConfig.data.length === 0 || !tabConfig.isEnd ) {
+            if (tabConfig.data.length === 0 && !tabConfig.isEnd ) {
                 tabConfig.currentPage = 1;
                 tabConfig.isEnd = false;
-                tabConfig.data = []; // 清空旧数据
                 loadSharesForTab(activeStatus, 1, false);
             }
         });
@@ -335,11 +312,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function fetchAndDisplayContentTree(params) {
         const payload = {};
-        if (params.shareCode) { 
-             payload.shareCode = params.shareCode;
-        } else if (params.codeHash) {
-            payload.codeHash = params.codeHash;
-        }
+        if (params.codeHash) payload.codeHash = params.codeHash;
+        if (params.shareCode) payload.shareCode = params.shareCode;
 
         if (!payload.codeHash && !payload.shareCode) {
             contentTreeDisplayArea.innerHTML = '<p class="text-center text-danger">错误: 查看目录树缺少必要的分享码信息。</p>';
@@ -348,7 +322,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         contentTreeDisplayArea.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">加载中...</span></div> <span class="ms-2 text-muted">正在加载目录结构...</span></div>';
-        contentTreeSearchInput.value = ''; 
+        if (contentTreeSearchInput) contentTreeSearchInput.value = ''; 
         if (bsContentTreeModal) bsContentTreeModal.show(); 
 
         try {
@@ -362,7 +336,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (result.isFinish === true) {
                 if (Array.isArray(result.message) && result.message.length > 0) {
-                    const treeHtml = result.message.map(line => `<div>${escapeHtml(line)}</div>`).join('');
+                    const treeHtml = result.message.map(item => `<div>${escapeHtml(item[0])}</div>`).join('');
                     contentTreeDisplayArea.innerHTML = treeHtml;
                 } else if (Array.isArray(result.message) && result.message.length === 0) {
                      contentTreeDisplayArea.innerHTML = '<p class="text-center text-muted p-3">此分享内容为空。</p>';
@@ -373,7 +347,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 contentTreeDisplayArea.innerHTML = `<p class="text-center text-danger p-3">错误: ${escapeHtml(result.message)}</p>`;
             }
         } catch (error) {
-            console.error('获取目录树失败:', error);
+            console.error('获取目录树失败 (Admin):', error);
             contentTreeDisplayArea.innerHTML = `<p class="text-center text-danger p-3">请求目录树失败: ${escapeHtml(error.message)}</p>`;
             if (bsContentTreeModal && !bsContentTreeModal._isShown) bsContentTreeModal.show();
         }
@@ -392,7 +366,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (contentTreeModalEl) {
         contentTreeModalEl.addEventListener('hidden.bs.modal', function () {
-            contentTreeSearchInput.value = ''; 
+            if (contentTreeSearchInput) contentTreeSearchInput.value = ''; 
             const lines = contentTreeDisplayArea.querySelectorAll('div');
             lines.forEach(lineEl => {
                 lineEl.style.display = ''; 
@@ -408,38 +382,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            const originalButtonHtml = this.innerHTML; // 保存原始按钮内容
+            const originalButtonHtml = this.innerHTML;
             this.disabled = true;
             this.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 更新中...`;
 
             try {
-                // 调用新的管理员API来更新数据库
-                // 注意：fetchAdminApi 内部会处理 alert
                 const data = await fetchAdminApi('/update_database', 'POST'); 
                 
-                // API 响应格式为 {"isFinish": bool, "message": "..."}
-                // fetchAdminApi 在成功时（response.ok）会直接返回解析后的JSON data
-                // 在失败时（!response.ok）或网络错误时，会抛出异常，并由其内部的 catch 处理 alert
-                // 因此，这里只需要检查 data.isFinish 即可
-
-                if (data && data.isFinish) { // 确保 data 存在且 isFinish 为 true
-                    // 对于成功的操作，fetchAdminApi 通常不会 alert，所以这里可以补一个
+                if (data && data.isFinish) {
                     alert(`数据库更新成功！\n${data.message || ''}`);
-                    // 更新成功后，刷新当前标签页的数据
                     loadSharesForTab(activeStatus, 1, false); 
-                } else if (data && data.message) { // 如果 isFinish 为 false，但有 message
-                    // fetchAdminApi 应该在 !response.ok 时已 alert，但如果逻辑是 response.ok 但 isFinish=false
+                } else if (data && data.message) {
                     alert(`数据库更新提示: ${data.message}`);
                 }
-                // 如果 data 为空或 data.isFinish 未定义（理论上不应发生，因为 fetchAdminApi 会处理），
-                // 错误已由 fetchAdminApi 的 catch 块处理。
-
             } catch (error) {
-                // fetchAdminApi 内部的 catch 已经处理了 alert
-                // console.error("更新数据库按钮点击处理中发生错误:", error); // 错误已在fetchAdminApi中记录和alert
             } finally {
                 this.disabled = false;
-                this.innerHTML = originalButtonHtml; // 恢复按钮原始状态
+                this.innerHTML = originalButtonHtml;
             }
         });
     }

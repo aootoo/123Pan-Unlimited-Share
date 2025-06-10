@@ -97,129 +97,65 @@ def generateContentTree(b64_data_str: str) -> dict:
     try:
         all_items_list = json.loads(base64.urlsafe_b64decode(b64_data_str).decode("utf-8"))
     except Exception as e:
+        logger.error(f"generateContentTree: 解码 base64 数据失败: {e}", exc_info=True)
         return {"isFinish": False, "message": f"错误: {e}"}
  
     # 1. 构建节点映射表 (FileId -> item_data) 并初始化子节点列表
     nodes = {}
     for item_dict in all_items_list:
-        # 创建副本以避免修改原始列表中的字典
         item = item_dict.copy()
-        item['children'] = []  # 为每个节点添加一个子节点列表
+        item['children'] = []
         nodes[item['FileId']] = item
  
-    # 2. 构建树形结构：将子节点挂载到父节点上
+    # 2. 构建树形结构
     root_items = []
     all_file_ids_in_data = set(nodes.keys())
  
     for item_id, item_data in nodes.items():
         parent_id = item_data.get('parentFileId')
-        # 如果父ID存在且该父ID也在我们当前处理的数据集中，则将其添加为子节点
         if parent_id is not None and parent_id in nodes:
             nodes[parent_id]['children'].append(item_data)
-        # 否则，如果父ID不存在于当前数据集中（或parentFileId本身不存在），
-        # 那么这个item被认为是当前数据集中的一个根项目
-        elif parent_id not in all_file_ids_in_data: # 这处理了其父项不在当前列表中的项
+        elif parent_id not in all_file_ids_in_data or parent_id is None: # 处理根项目或父项不在当前列表中的情况
             root_items.append(item_data)
-        # 为真正没有 parentFileId 的项添加一个回退机制，尽管示例数据中有它
-        elif parent_id is None:
-             root_items.append(item_data)
  
-    # 3. 对每个节点的子节点列表和根项目列表按文件名排序
+    # 3. 排序: 先按类型(文件夹优先)，再按文件名
     for node in nodes.values():
         if node['children']:
-            node['children'].sort(key=lambda x: x['FileName'])
+            # 确保 Type 存在，如果不存在则默认为文件类型 (0)
+            node['children'].sort(key=lambda x: (x.get('Type', 0) != 1, x['FileName']))
     
-    root_items.sort(key=lambda x: x['FileName'])
+    root_items.sort(key=lambda x: (x.get('Type', 0) != 1, x['FileName']))
  
-    # 4. 递归生成树形字符串
-    tree_lines = []
+    # 4. 递归生成树形字符串列表，每个条目是 [行文本, FileId]
+    tree_lines_with_ids = [] 
  
-    def build_tree_recursive(item, prefix, is_last_child):
-        # 获取图标
-        if item['Type'] == 1:  # 文件夹
-            icon = "📂"
-        else:  # 文件
-            icon = _get_icon(item['FileName'])
- 
-        # 连接符
-        connector = "└── " if is_last_child else "├── "
-        
-        tree_lines.append(f"{prefix}{connector}{icon} {item['FileName']}")
- 
-        # 更新下一级的前缀
-        children_prefix = prefix + ("    " if is_last_child else "│   ")
-        
-        children = item.get('children', [])
-        for i, child in enumerate(children):
-            build_tree_recursive(child, children_prefix, i == len(children) - 1)
- 
-    # 5. 从根节点开始生成
-    for i, root_item in enumerate(root_items):
-        # 对于根项目，它们没有父级的前缀结构，所以直接开始
-        # 如果只有一个根项目，可以用 "└── "，多个则按常规处理
-        # 为简单起见，我们将多个根视为一个隐式主根下的兄弟节点
-        # 或者，如果我们想在顶部扁平地显示它们：
-        icon = "📂" if root_item['Type'] == 1 else _get_icon(root_item['FileName'])
-        tree_lines.append(f"{icon} {root_item['FileName']}") # 顶级项目不使用连接符
-        
-        children_prefix = "" # 根项目子项的初始前缀
-        
-        # 更新：为了即使有多个根也能获得更标准的树状外观
-        # 我们可以定义一个辅助函数，以便对根节点以略微不同的方式开始递归
-        # 我们还是坚持调用添加连接符逻辑的递归辅助函数
-        # build_tree_recursive(root_item, "", i == len(root_items) - 1)
-        # 這會將根視為一個不可見的 "" 的子節點。
-        # 上面 `tree_lines.append(f"{icon} {root_item['FileName']}")` 后跟递归调用
-        # 对于子项，这对于多个“根”共享更为常见。
-        #
-        # 让我们优化一下：如果 root_items 是真正要显示的根，它们不应该有像 ├── 这样的前缀
-        # 递归函数应该为其子项调用。
-        
-        # 根项的修正方法：
-        # 它们被直接打印，然后它们的子项使用初始前缀进行处理。
- 
-        children = root_item.get('children', [])
-        for idx, child_of_root in enumerate(children):
-            # “根”项的每个子项都将获得一个新的前缀起点
-            initial_child_prefix = "" # 这是连接符本身的前缀
-                                     # 连接符将是 ├── 或 └──
-            build_tree_recursive(child_of_root, initial_child_prefix, idx == len(children) - 1)
- 
-    # 让我们从最顶层优化根项处理，以获得正确的树状结构。
-    # 之前根项显示的逻辑有点偏差。
-    # 我们应该迭代 root_items 并直接为它们调用 build_tree_recursive。
-    
-    tree_lines = [] # 为优化的根处理重置
- 
-    def generate_lines_for_list(item_list, base_prefix):
+    def generate_lines_for_list_recursive(item_list, base_prefix):
         num_items = len(item_list)
-        for i, item in enumerate(item_list):
+        for i, item_data in enumerate(item_list):
             is_last = (i == num_items - 1)
-            icon = "📂" if item['Type'] == 1 else _get_icon(item['FileName'])
+            # 确保 Type 存在
+            icon = "📂" if item_data.get('Type') == 1 else _get_icon(item_data['FileName'])
             connector = "└── " if is_last else "├── "
-            tree_lines.append(f"{base_prefix}{connector}{icon} {item['FileName']}")
+            line_text = f"{base_prefix}{connector}{icon} {item_data['FileName']}"
+            tree_lines_with_ids.append([line_text, item_data['FileId']]) # 存储行文本和FileId
             
             children_prefix = base_prefix + ("    " if is_last else "│   ")
-            # 如果子项存在并且已排序，则递归处理它们
-            if item['children']:
-                generate_lines_for_list(item['children'], children_prefix)
+            if item_data['children']:
+                generate_lines_for_list_recursive(item_data['children'], children_prefix)
  
-    # 从已排序的 root_items 开始生成
+    # 5. 从根节点开始生成
     num_root_items = len(root_items)
     for i, root_item_data in enumerate(root_items):
-        is_last_root = (i == num_root_items - 1)
-        icon = "📂" if root_item_data['Type'] == 1 else _get_icon(root_item_data['FileName'])
+        # 确保 Type 存在
+        icon = "📂" if root_item_data.get('Type') == 1 else _get_icon(root_item_data['FileName'])
+        root_line_text = f"{icon} {root_item_data['FileName']}"
+        tree_lines_with_ids.append([root_line_text, root_item_data['FileId']])
         
-        # 对于根项，除非它们位于单个“共享名称”下，否则我们通常不使用 '├──' 或 '└──'。
-        # 如果我们希望它们显示为最顶部的条目：
-        tree_lines.append(f"{icon} {root_item_data['FileName']}")
-        
-        # 然后使用适当的前缀列出它们的子项
         if root_item_data['children']:
-            generate_lines_for_list(root_item_data['children'], "") # 子项以无 base_prefix 开始，连接符添加前缀
-                                                                    # 这将导致根项的直接子项使用 ├── 或 └──。
-    
-    return {"isFinish": True, "message": tree_lines}
+            generate_lines_for_list_recursive(root_item_data['children'], "") 
+                                                                    
+    logger.debug(f"generateContentTree: 生成的目录树条目数: {len(tree_lines_with_ids)}")
+    return {"isFinish": True, "message": tree_lines_with_ids}
 
 # 将 etag 转换为 123FastLink 使用 Base62 加密后的字符串 
 def encryptEtagTo123FastLinkEtag(etag: str) -> str:

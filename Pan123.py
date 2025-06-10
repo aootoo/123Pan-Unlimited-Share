@@ -296,9 +296,21 @@ class Pan123:
         try:
             files_list = json.loads(base64.urlsafe_b64decode(base64Data))
 
-            # 选择部分文件导入
+            # 如果选择部分文件导入
             if filterIds:
+                # 获取所有筛选出来的文件
+                filterIds = set(filterIds)
+                # 获取所有文件的绝对路径，将父级文件夹全都添加到filterIDs中
+                folder_ids = set()
+                filtered_files = [item for item in files_list if item.get("FileId") in filterIds]
+                for item in filtered_files:
+                    current_folder_ids = [int(_id) for _id in item.get("AbsPath").split("/") if _id]
+                    folder_ids.update(current_folder_ids)
+                # 将所有文件夹ID添加到filterIDs中
+                filterIds.update(folder_ids)
+                # 得到最终的文件列表
                 files_list = [item for item in files_list if item.get("FileId") in filterIds]
+                logger.debug(f"importFiles: 筛选出 {len(filtered_files)} 个文件, 共 {len(files_list)} 个文件")
 
         except Exception as e:
             logger.error(f"importFiles: 读取 base64Data 失败: {e}", exc_info=True)

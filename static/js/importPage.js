@@ -1,56 +1,67 @@
 document.addEventListener('DOMContentLoaded', async function () {
     // 客户端侧检查IP是否为中国大陆地区, 如果是则重定向
-    await checkRegionAndRedirect(); 
+    await checkRegionAndRedirect();
 
     // 获取表单和结果显示区域的DOM元素
     const importForm = document.getElementById('importForm');
     const resultArea = document.getElementById('resultArea');
     const statusMessageEl = document.getElementById('statusMessage');
     const logOutputEl = document.getElementById('logOutput');
-    
+
     // 公共资源库相关的DOM元素
-    const selectedPublicCodeHashInput = document.getElementById('selectedPublicCodeHash'); 
-    const publicSharesListDiv = document.getElementById('publicSharesListActual');      
-    const publicShareSearchInput = document.getElementById('publicShareSearch');        
-    const publicSharesListContainer = document.getElementById('publicSharesListContainer'); 
+    const selectedPublicCodeHashInput = document.getElementById('selectedPublicCodeHash');
+    const selectedPublicRootNameInput = document.getElementById('selectedPublicRootName');
+    const publicSharesListDiv = document.getElementById('publicSharesListActual');
+    const publicShareSearchInput = document.getElementById('publicShareSearch');
+    const publicSharesListContainer = document.getElementById('publicSharesListContainer');
 
     // 短分享码、长分享码、文件导入相关的DOM元素
     const shortCodeInput = document.getElementById('shortCodeInput');
     const longBase64DataInput = document.getElementById('longBase64DataInput');
     const longRootFolderNameInput = document.getElementById('longRootFolderNameInput');
-    const importShareProjectCheckbox = document.getElementById('importShareProject'); 
+    const importShareProjectCheckbox = document.getElementById('importShareProject');
 
-    const shareFileInput = document.getElementById('shareFileInput'); 
-    const selectShareFileButton = document.getElementById('selectShareFileButton'); 
+    const shareFileInput = document.getElementById('shareFileInput');
+    const selectShareFileButton = document.getElementById('selectShareFileButton');
 
     // 内容目录树模态框相关的DOM元素
     const contentTreeModalEl = document.getElementById('contentTreeModal');
-    const contentTreeSearchInput = document.getElementById('contentTreeSearchInput'); 
-    const contentTreeDisplayArea = document.getElementById('contentTreeDisplayArea'); 
-    const bsContentTreeModal = new bootstrap.Modal(contentTreeModalEl); 
+    const contentTreeSearchInput = document.getElementById('contentTreeSearchInput');
+    const contentTreeDisplayArea = document.getElementById('contentTreeDisplayArea');
+    const bsContentTreeModal = new bootstrap.Modal(contentTreeModalEl);
 
-    const startImportBtn = document.getElementById('startImportBtn'); // 获取开始导入按钮
+    // 目录树模态框内的按钮
+    const selectFilesToggleBtn = document.getElementById('selectFilesToggleBtn');
+    const filterButtonsContainer = document.getElementById('filterButtonsContainer');
+    const selectAllImagesBtn = document.getElementById('selectAllImagesBtn');
+    const selectAllVideosBtn = document.getElementById('selectAllVideosBtn');
+    const selectAllAudiosBtn = document.getElementById('selectAllAudiosBtn');
+    const selectAllArchivesBtn = document.getElementById('selectAllArchivesBtn');
+    const confirmSelectionBtn = document.getElementById('confirmSelectionBtn');
+
+    const startImportBtn = document.getElementById('startImportBtn');
 
     // API端点URL 
     const API_IMPORT_URL = window.APP_CONFIG.apiImportUrl || '/api/import';
     const API_LIST_PUBLIC_SHARES_URL = window.APP_CONFIG.apiListPublicSharesUrl || '/api/list_public_shares';
     const API_GET_CONTENT_TREE_URL = window.APP_CONFIG.apiGetContentTreeUrl || '/api/get_content_tree';
-    const API_SEARCH_DATABASE_URL = window.APP_CONFIG.apiSearchDatabaseUrl || '/api/search_database'; 
+    const API_SEARCH_DATABASE_URL = window.APP_CONFIG.apiSearchDatabaseUrl || '/api/search_database';
 
-    // 分页和加载状态变量
-    let allPublicSharesData = []; 
+    // 状态变量
+    let allPublicSharesData = [];
+    let currentPublicListPage = 1;
+    let isLoadingPublicList = false;
+    let isEndOfPublicList = false;
+    let currentSearchPage = 1;
+    let isLoadingSearchResults = false;
+    let isEndOfSearchResults = false;
+    let currentSearchTerm = '';
+    let currentActiveTabId = 'publicRepoContent';
+    const originalStartImportBtnHtml = startImportBtn.innerHTML;
 
-    let currentPublicListPage = 1;       
-    let isLoadingPublicList = false;     
-    let isEndOfPublicList = false;       
-
-    let currentSearchPage = 1;           
-    let isLoadingSearchResults = false;  
-    let isEndOfSearchResults = false;    
-    let currentSearchTerm = '';          
-
-    let currentActiveTabId = 'publicRepoContent'; 
-    const originalStartImportBtnHtml = startImportBtn.innerHTML; 
+    let currentTreeData = []; // 用于存储从API获取的原始目录树数据 [[lineText, fileId], ...]
+    let currentFilterIds = []; // 用户勾选的用于导入的文件ID列表
+    let currentSelectedPublicShareItemElement = null; // 当前在公共列表中选中的DOM元素
 
     // 从Cookie加载用户凭据 
     const savedUsername = getCookie('username');
@@ -58,11 +69,318 @@ document.addEventListener('DOMContentLoaded', async function () {
     if (savedUsername) document.getElementById('username').value = savedUsername;
     if (savedPassword) document.getElementById('password').value = savedPassword;
 
+    // 辅助函数：设置模态框中选择相关按钮的初始状态
+    function setInitialModalState() {
+        if (selectFilesToggleBtn) {
+            selectFilesToggleBtn.innerHTML = '<i class="bi bi-check-all"></i>选择部分文件导入';
+            selectFilesToggleBtn.dataset.selecting = 'false';
+        }
+        if (filterButtonsContainer) filterButtonsContainer.style.display = 'none';
+        if (confirmSelectionBtn) confirmSelectionBtn.style.display = 'none';
+    
+        // 重新渲染不带勾选框的树 (如果树数据已加载)
+        if (currentTreeData && currentTreeData.length > 0) {
+             renderTreeLines(currentTreeData, false);
+        } else {
+            contentTreeDisplayArea.innerHTML = ''; // 清空旧树
+        }
+    }
+
+    // 切换部分文件选择模式
+    if (selectFilesToggleBtn) {
+        selectFilesToggleBtn.addEventListener('click', function() {
+            const isSelecting = this.dataset.selecting === 'true';
+            if (isSelecting) { // 当前是“取消选择”状态，要切换回普通查看
+                this.innerHTML = '<i class="bi bi-check-all"></i>选择部分文件导入';
+                this.dataset.selecting = 'false';
+                filterButtonsContainer.style.display = 'none';
+                confirmSelectionBtn.style.display = 'none';
+                renderTreeLines(currentTreeData, false); // 重新渲染不带勾选框的树
+                currentFilterIds = []; // 从“选择模式”退出时，清空已选ID
+            } else { // 当前是普通查看状态，要切换到“选择文件”
+                this.innerHTML = '<i class="bi bi-x-lg"></i>取消选择部分文件导入';
+                this.dataset.selecting = 'true';
+                filterButtonsContainer.style.display = 'flex'; // 使用 flex 以应用 action-button-row 的等宽效果
+                confirmSelectionBtn.style.display = 'inline-block';
+                renderTreeLines(currentTreeData, true); // 重新渲染带勾选框的树
+            }
+        });
+    }
+
+    // 绑定类型筛选按钮事件
+    if (selectAllImagesBtn) selectAllImagesBtn.addEventListener('click', () => toggleSelectionByIcon("🖼️"));
+    if (selectAllVideosBtn) selectAllVideosBtn.addEventListener('click', () => toggleSelectionByIcon("🎥"));
+    if (selectAllAudiosBtn) selectAllAudiosBtn.addEventListener('click', () => toggleSelectionByIcon("🎵"));
+    if (selectAllArchivesBtn) selectAllArchivesBtn.addEventListener('click', () => toggleSelectionByIcon("📦"));
+
+    function toggleSelectionByIcon(iconSymbol) {
+        const checkboxes = contentTreeDisplayArea.querySelectorAll('.tree-item-checkbox');
+        checkboxes.forEach(checkbox => {
+            const lineIndex = parseInt(checkbox.dataset.lineindex, 10);
+            const [lineText, fileId] = currentTreeData[lineIndex];
+            const isDir = checkbox.dataset.isdir === 'true';
+            const lineIcon = lineText.trim().split(" ")[0];
+
+            if (lineText.includes(iconSymbol) && !isDir) { // 只对文件生效
+                checkbox.checked = true; // 勾选
+                // 触发父级联动
+                handleSingleCheckboxChange(checkbox, true); // 传入 true 表示强制向上勾选父级
+            }
+        });
+    }
+
+    // 渲染目录树行的函数
+    function renderTreeLines(treeData, showCheckboxes) {
+        contentTreeDisplayArea.innerHTML = treeData.map((item, index) => {
+            const [lineText, fileId] = item;
+            const escapedLineText = escapeHtml(lineText);
+            const isDirectory = lineText.includes("📂");
+            const icon = lineText.trim().split(" ")[0]; 
+
+            let checkboxHtml = '';
+            if (showCheckboxes) {
+                checkboxHtml = `<input type="checkbox" class="form-check-input tree-item-checkbox" data-fileid="${fileId}" data-lineindex="${index}" data-isdir="${isDirectory}" data-icon="${escapeHtml(icon)}">`;
+            }
+            return `<div class="tree-line-item" data-fileid="${fileId}" data-lineindex="${index}" data-isdir="${isDirectory}" data-icon="${escapeHtml(icon)}">${checkboxHtml}<span>${escapedLineText}</span></div>`;
+        }).join('');
+
+        if (showCheckboxes) {
+            bindCheckboxEvents();
+            // 恢复之前的勾选状态 (如果有的话)
+            reapplyCheckboxStates();
+        }
+    }
+    
+    function reapplyCheckboxStates() {
+        if (currentFilterIds.length > 0) {
+            const allCheckboxes = contentTreeDisplayArea.querySelectorAll('.tree-item-checkbox');
+            allCheckboxes.forEach(cb => {
+                const fileId = parseInt(cb.dataset.fileid, 10);
+                const isDir = cb.dataset.isdir === 'true';
+                if (!isDir && currentFilterIds.includes(fileId)) {
+                    cb.checked = true;
+                    // 触发父级联动，确保父文件夹也被勾选
+                    handleSingleCheckboxChange(cb, true);
+                }
+            });
+            // 由于 handleSingleCheckboxChange 中文件夹的勾选是基于子项，
+            // 可能需要再次遍历确保所有包含已选文件的文件夹都被勾选
+            propagateFolderChecks();
+        }
+    }
+    
+    function propagateFolderChecks() {
+        const folderCheckboxes = Array.from(contentTreeDisplayArea.querySelectorAll('.tree-item-checkbox[data-isdir="true"]'));
+        // 从最深层文件夹开始检查
+        folderCheckboxes.sort((a, b) => getDepthFromLineIndex(b.dataset.lineindex) - getDepthFromLineIndex(a.dataset.lineindex));
+        
+        folderCheckboxes.forEach(folderCb => {
+            if (hasCheckedChildFile(folderCb)) {
+                folderCb.checked = true;
+            }
+        });
+    }
+
+    function hasCheckedChildFile(folderCheckbox) {
+        const lineIndex = parseInt(folderCheckbox.dataset.lineindex, 10);
+        const currentDepth = getDepthFromLineIndex(lineIndex);
+
+        for (let i = lineIndex + 1; i < currentTreeData.length; i++) {
+            const childDepth = getDepthFromLineIndex(i);
+            if (childDepth > currentDepth) {
+                const childCb = contentTreeDisplayArea.querySelector(`.tree-item-checkbox[data-lineindex="${i}"]`);
+                if (childCb) {
+                    if (childCb.dataset.isdir === 'false' && childCb.checked) return true; // 找到一个已勾选的子文件
+                    if (childCb.dataset.isdir === 'true' && hasCheckedChildFile(childCb)) return true; // 递归检查子文件夹
+                }
+            } else {
+                break; 
+            }
+        }
+        return false;
+    }
+
+    // 绑定和处理勾选框变化的逻辑
+    function bindCheckboxEvents() {
+        const checkboxes = contentTreeDisplayArea.querySelectorAll('.tree-item-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.removeEventListener('change', handleCheckboxChangeEvent); 
+            checkbox.addEventListener('change', handleCheckboxChangeEvent);
+        });
+    }
+
+    function handleCheckboxChangeEvent(event) {
+        handleSingleCheckboxChange(event.target, false); // 默认不是强制向上勾选
+    }
+    
+    function handleSingleCheckboxChange(checkbox, forceCheckParent = false) {
+        const isChecked = checkbox.checked;
+        const lineIndex = parseInt(checkbox.dataset.lineindex, 10);
+        const isDir = checkbox.dataset.isdir === 'true';
+
+        if (isDir) { // 操作的是文件夹
+            // 向下影响子项
+            const currentDepth = getDepthFromLineIndex(lineIndex);
+            for (let i = lineIndex + 1; i < currentTreeData.length; i++) {
+                const childDepth = getDepthFromLineIndex(i);
+                if (childDepth > currentDepth) {
+                    const childCheckbox = contentTreeDisplayArea.querySelector(`.tree-item-checkbox[data-lineindex="${i}"]`);
+                    if (childCheckbox) childCheckbox.checked = isChecked;
+                } else {
+                    break; 
+                }
+            }
+        }
+        
+        // 向上影响父项
+        if (isChecked || forceCheckParent) { // 如果是勾选文件，或强制勾选父级
+            let currentIndex = lineIndex;
+            let currentItemDepth = getDepthFromLineIndex(currentIndex);
+            while (true) {
+                let parentIndex = -1;
+                let parentDepth = -1;
+                // 从当前项向上查找第一个层级比它浅的文件夹
+                for (let p = currentIndex - 1; p >= 0; p--) {
+                    const pDepth = getDepthFromLineIndex(p);
+                    const pIsDir = currentTreeData[p][0].includes("📂"); 
+                    if (pIsDir && pDepth < currentItemDepth) {
+                        parentIndex = p;
+                        parentDepth = pDepth;
+                        break;
+                    }
+                }
+
+                if (parentIndex !== -1) {
+                    const parentCheckbox = contentTreeDisplayArea.querySelector(`.tree-item-checkbox[data-lineindex="${parentIndex}"]`);
+                    if (parentCheckbox) {
+                         // 只有当子项被勾选时，才强制勾选父项
+                         if (isChecked || forceCheckParent) {
+                            parentCheckbox.checked = true;
+                        }
+                    }
+                    currentIndex = parentIndex;
+                    currentItemDepth = parentDepth;
+                } else {
+                    break; // 到达顶级或未找到父文件夹
+                }
+            }
+        } else { // 如果是取消勾选文件，则检查是否需要取消父文件夹
+           if (!isDir) { // 只对文件取消勾选时触发父级检查
+                checkAndUncheckParents(lineIndex);
+           }
+        }
+    }
+    
+    function checkAndUncheckParents(startIndex) {
+        let currentIndex = startIndex;
+        let currentItemDepth = getDepthFromLineIndex(currentIndex);
+
+        while (true) {
+            let parentIndex = -1;
+            let parentDepth = -1;
+            for (let p = currentIndex - 1; p >= 0; p--) {
+                const pDepth = getDepthFromLineIndex(p);
+                const pIsDir = currentTreeData[p][0].includes("📂");
+                if (pIsDir && pDepth < currentItemDepth) {
+                    parentIndex = p;
+                    parentDepth = pDepth;
+                    break;
+                }
+            }
+
+            if (parentIndex !== -1) {
+                const parentCheckbox = contentTreeDisplayArea.querySelector(`.tree-item-checkbox[data-lineindex="${parentIndex}"]`);
+                if (parentCheckbox && parentCheckbox.checked) { // 只有父文件夹是勾选状态才检查
+                    if (!hasCheckedChildFileOrFolder(parentCheckbox)) {
+                        parentCheckbox.checked = false;
+                    }
+                }
+                currentIndex = parentIndex;
+                currentItemDepth = parentDepth;
+            } else {
+                break;
+            }
+        }
+    }
+
+    function hasCheckedChildFileOrFolder(folderCheckbox) {
+        const lineIndex = parseInt(folderCheckbox.dataset.lineindex, 10);
+        const currentDepth = getDepthFromLineIndex(lineIndex);
+
+        for (let i = lineIndex + 1; i < currentTreeData.length; i++) {
+            const childDepth = getDepthFromLineIndex(i);
+            if (childDepth > currentDepth) {
+                const childCb = contentTreeDisplayArea.querySelector(`.tree-item-checkbox[data-lineindex="${i}"]`);
+                if (childCb && childCb.checked) return true; // 找到一个已勾选的子项 (文件或文件夹)
+            } else {
+                break; 
+            }
+        }
+        return false;
+    }
+
+    // 辅助函数：从行文本获取层级深度 (基于行在 currentTreeData 中的索引)
+    function getDepthFromLineIndex(lineIndex) {
+        if (lineIndex < 0 || lineIndex >= currentTreeData.length) return -1;
+        const lineText = currentTreeData[lineIndex][0];
+        // 匹配所有可能的前缀字符，并计算长度. '    ' (4个空格), '│   ' (4个字符), '└── ' (4个字符), '├── ' (4个字符).
+        // 所以深度就是前缀长度除以4.
+        const prefix = lineText.match(/^(\s*(?:│\s\s\s|└──\s|├──\s| ))*/)[0];
+        return Math.floor(prefix.length / 4);
+    }
+
+    // 确认勾选按钮事件
+    if (confirmSelectionBtn) {
+        confirmSelectionBtn.addEventListener('click', function() {
+            currentFilterIds = [];
+            const checkboxes = contentTreeDisplayArea.querySelectorAll('.tree-item-checkbox:checked');
+            checkboxes.forEach(cb => {
+                currentFilterIds.push(parseInt(cb.dataset.fileid, 10));
+            });
+
+            currentFilterIds = [...new Set(currentFilterIds)]; // 去重
+
+            if (currentFilterIds.length === 0) {
+                alert("您没有勾选任何文件。如果想导入全部内容，请点击“取消选择部分文件导入”按钮，然后关闭此窗口并直接导入。");
+                return;
+            }
+            
+            let targetElementName = "当前操作";
+            if (currentActiveTabId === 'publicRepoContent' && selectedPublicRootNameInput.value) {
+                targetElementName = `资源“${escapeHtml(selectedPublicRootNameInput.value)}”`;
+            } else if (currentActiveTabId === 'shortCodeContent' && shortCodeInput.value) {
+                targetElementName = `短码“${escapeHtml(shortCodeInput.value.substring(0,8))}...”`;
+            } else if (currentActiveTabId === 'longCodeContent' && longRootFolderNameInput.value) {
+                 targetElementName = `分享“${escapeHtml(longRootFolderNameInput.value)}”`;
+            }
+            updateStatusMessage(statusMessageEl, `已为${targetElementName}选择了 ${currentFilterIds.length} 个文件进行导入。`, 'success');
+
+            // 如果是从公共资源库选择的，更新列表项显示
+            if (currentSelectedPublicShareItemElement) {
+                let filterIdsDisplay = currentSelectedPublicShareItemElement.querySelector('.selected-filter-ids-display');
+                if (!filterIdsDisplay) {
+                    filterIdsDisplay = document.createElement('small');
+                    filterIdsDisplay.classList.add('selected-filter-ids-display');
+                    const textContainer = currentSelectedPublicShareItemElement.querySelector('.col');
+                    if (textContainer) {
+                         textContainer.appendChild(filterIdsDisplay);
+                    } else {
+                        currentSelectedPublicShareItemElement.appendChild(filterIdsDisplay);
+                    }
+                }
+                const displayIds = currentFilterIds.length > 5 ? currentFilterIds.slice(0, 5).join(', ') + `... (共${currentFilterIds.length}项)` : currentFilterIds.join(', ');
+                filterIdsDisplay.textContent = `已选文件ID: ${displayIds}`;
+            }
+            bsContentTreeModal.hide(); 
+        });
+    }
+    
     // 监听导入模式标签页的切换事件
     document.querySelectorAll('#importTabs button[data-bs-toggle="tab"]').forEach(tabEl => {
         tabEl.addEventListener('shown.bs.tab', function (event) {
             currentActiveTabId = event.target.getAttribute('aria-controls'); 
             selectedPublicCodeHashInput.value = ''; 
+            selectedPublicRootNameInput.value = ''; // 清空
             shortCodeInput.value = '';
             longBase64DataInput.value = '';
             longRootFolderNameInput.value = '';
@@ -71,21 +389,172 @@ document.addEventListener('DOMContentLoaded', async function () {
             
             document.querySelectorAll('.public-share-item.active').forEach(activeItem => {
                 activeItem.classList.remove('active');
+                const oldFilterDisplay = activeItem.querySelector('.selected-filter-ids-display');
+                if(oldFilterDisplay) oldFilterDisplay.remove();
             });
-            if (statusMessageEl.textContent.startsWith('已选择公共资源:') || statusMessageEl.textContent.startsWith('已成功加载文件:')) {
+            currentSelectedPublicShareItemElement = null; // 清除
+            currentFilterIds = []; // 切换标签页时清空已选ID
+
+            if (statusMessageEl.textContent.startsWith('已选择公共资源:') || 
+                statusMessageEl.textContent.startsWith('已成功加载文件:') ||
+                statusMessageEl.textContent.includes('选择了')) {
                 updateStatusMessage(statusMessageEl, '请输入必填信息。', 'info');
             }
         });
     });
 
-    // 导入表单的提交事件监听
+    // 处理公共资源列表项点击事件
+    publicSharesListDiv.addEventListener('click', function(event) {
+        const item = event.target.closest('.public-share-item');
+        if (item && item.contains(event.target) && !event.target.closest('.view-content-tree-btn')) { // 确保不是点击查看目录按钮
+            // 清除所有项的 active 和 filterIds 显示
+            document.querySelectorAll('.public-share-item.active').forEach(activeItem => {
+                activeItem.classList.remove('active');
+                const existingFilterDisplay = activeItem.querySelector('.selected-filter-ids-display');
+                if (existingFilterDisplay) existingFilterDisplay.textContent = ''; // 只清空内容，保留元素
+            });
+
+            item.classList.add('active'); 
+            currentSelectedPublicShareItemElement = item; 
+            const nameSpan = item.querySelector('.share-name');
+            if (nameSpan) {
+                 selectedPublicRootNameInput.value = nameSpan.textContent;
+            }
+            selectedPublicCodeHashInput.value = item.querySelector('.view-content-tree-btn').dataset.codehash;
+
+            updateStatusMessage(statusMessageEl, `已选择公共资源: ${escapeHtml(selectedPublicRootNameInput.value)}`, 'secondary');
+            logOutputEl.textContent = ''; 
+            currentFilterIds = []; // 重置 filterIds 数组
+            const currentFilterDisplay = item.querySelector('.selected-filter-ids-display');
+            if (currentFilterDisplay) currentFilterDisplay.textContent = '';
+        }
+    });
+
+    async function fetchAndDisplayContentTree(params) {
+        const payload = {};
+        if (params.codeHash) payload.codeHash = params.codeHash;
+        if (params.shareCode) payload.shareCode = params.shareCode; 
+
+        if (!payload.codeHash && !payload.shareCode) {
+            contentTreeDisplayArea.innerHTML = '<p class="text-center text-danger">错误: 查看目录树缺少必要的参数。</p>';
+            setInitialModalState(); 
+            bsContentTreeModal.show();
+            return;
+        }
+
+        contentTreeDisplayArea.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">加载中...</span></div> <span class="ms-2 text-muted">正在加载目录结构...</span></div>';
+        contentTreeSearchInput.value = ''; 
+        
+        setInitialModalState(); 
+        
+        bsContentTreeModal.show(); 
+
+        try {
+            const response = await fetch(API_GET_CONTENT_TREE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+
+            if (result.isFinish === true) {
+                if (Array.isArray(result.message) && result.message.length > 0) {
+                    currentTreeData = result.message; 
+                    const showCheckboxesInitially = selectFilesToggleBtn && selectFilesToggleBtn.dataset.selecting === 'true';
+                    renderTreeLines(currentTreeData, showCheckboxesInitially); 
+                } else if (Array.isArray(result.message) && result.message.length === 0) {
+                     contentTreeDisplayArea.innerHTML = '<p class="text-center text-muted p-3">此分享内容为空。</p>';
+                     currentTreeData = [];
+                } else { 
+                    contentTreeDisplayArea.innerHTML = '<p class="text-center text-muted p-3">目录为空或无法解析。</p>';
+                    currentTreeData = [];
+                }
+            } else { 
+                contentTreeDisplayArea.innerHTML = `<p class="text-center text-danger p-3">错误: ${escapeHtml(result.message)}</p>`;
+                currentTreeData = [];
+            }
+        } catch (error) {
+            console.error('获取目录树失败:', error);
+            currentTreeData = [];
+            contentTreeDisplayArea.innerHTML = `<p class="text-center text-danger p-3">请求目录树失败: ${escapeHtml(error.message)}</p>`;
+        }
+    }
+
+    function renderPublicSharesList(sharesToRender, append = false) {
+        if (!append) {
+            publicSharesListDiv.innerHTML = ''; 
+            currentSelectedPublicShareItemElement = null; 
+            currentFilterIds = []; 
+            selectedPublicRootNameInput.value = '';
+            selectedPublicCodeHashInput.value = '';
+        }
+        
+        sharesToRender.forEach(share => {
+            const item = document.createElement('div');
+            item.classList.add('public-share-item', 'row', 'gx-2', 'align-items-center');
+            
+            const textContainer = document.createElement('div'); 
+            textContainer.classList.add('col');
+            textContainer.style.cursor = 'pointer'; 
+            textContainer.style.minWidth = '0'; 
+
+            const nameSpan = document.createElement('span'); 
+            nameSpan.classList.add('share-name');
+            nameSpan.textContent = share.name;
+            textContainer.appendChild(nameSpan);
+
+            const tsSpan = document.createElement('span'); 
+            tsSpan.classList.add('share-timestamp', 'd-block');
+            const date = new Date(share.timestamp);
+            tsSpan.textContent = `更新时间: ${date.toLocaleString('zh-CN')}`; 
+            textContainer.appendChild(tsSpan);
+            
+            const filterIdsDisplay = document.createElement('small');
+            filterIdsDisplay.classList.add('selected-filter-ids-display');
+            textContainer.appendChild(filterIdsDisplay);
+
+            item.appendChild(textContainer); 
+
+            const buttonContainer = document.createElement('div');
+            buttonContainer.classList.add('col-auto');
+
+            const viewTreeBtn = document.createElement('button'); 
+            viewTreeBtn.type = 'button';
+            viewTreeBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'view-content-tree-btn');
+            viewTreeBtn.innerHTML = '<i class="bi bi-search"></i>'; 
+            viewTreeBtn.dataset.codehash = share.codeHash; 
+            viewTreeBtn.title = "查看目录结构";
+            buttonContainer.appendChild(viewTreeBtn);
+            item.appendChild(buttonContainer); 
+            
+            textContainer.addEventListener('click', function() {
+                document.querySelectorAll('.public-share-item.active').forEach(activeItem => {
+                    activeItem.classList.remove('active');
+                    const oldFilterDisplay = activeItem.querySelector('.selected-filter-ids-display');
+                    if(oldFilterDisplay) oldFilterDisplay.textContent = '';
+                });
+
+                item.classList.add('active'); 
+                currentSelectedPublicShareItemElement = item; 
+                selectedPublicRootNameInput.value = share.name;
+                selectedPublicCodeHashInput.value = share.codeHash;
+
+                updateStatusMessage(statusMessageEl, `已选择公共资源: ${escapeHtml(share.name)}`, 'secondary');
+                logOutputEl.textContent = ''; 
+                currentFilterIds = [];
+                const currentFilterDisplay = item.querySelector('.selected-filter-ids-display');
+                if (currentFilterDisplay) currentFilterDisplay.textContent = '';
+            });
+            publicSharesListDiv.appendChild(item); 
+        });
+    }
+
     importForm.addEventListener('submit', async function (event) {
         event.preventDefault(); 
         resultArea.style.display = 'block'; 
         logOutputEl.textContent = '';       
         updateStatusMessage(statusMessageEl, '准备开始...', 'info'); 
 
-        // 更新开始导入按钮状态：立即禁用并改变文字/图标
         startImportBtn.disabled = true;
         startImportBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>处理中...';
 
@@ -110,7 +579,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                 shortCodeInput.focus();
                 formValid = false;
             }
-            payload.codeHash = shortCodeInput.value.trim();
+             payload.codeHash = shortCodeInput.value.trim();
         } else if (currentActiveTabId === 'longCodeContent') {
             if (!longBase64DataInput.value.trim()) {
                 updateStatusMessage(statusMessageEl, '错误: 请输入或选择文件以填充长分享码。', 'danger');
@@ -138,8 +607,15 @@ document.addEventListener('DOMContentLoaded', async function () {
              formValid = false;
         }
 
+        if (formValid && currentFilterIds.length > 0) {
+            if (payload.codeHash || payload.base64Data) {
+                payload.filterIds = currentFilterIds;
+            } else {
+                console.warn("有 filterIds 但没有主要的导入目标 (codeHash 或 base64Data)，将不传递 filterIds。");
+            }
+        }
+
         if (!formValid) {
-            // 恢复按钮状态因为校验失败提前返回
             startImportBtn.innerHTML = originalStartImportBtnHtml; 
             startImportBtn.disabled = false;
             return; 
@@ -152,14 +628,14 @@ document.addEventListener('DOMContentLoaded', async function () {
             logElement: logOutputEl,
             callbacks: { 
                 onSuccess: function(data) {
-                    // onSuccess 已由 streamApiHandler 处理 statusMessageEl
+                    if (currentSelectedPublicShareItemElement) {
+                        const filterIdsDisplay = currentSelectedPublicShareItemElement.querySelector('.selected-filter-ids-display');
+                        if (filterIdsDisplay) filterIdsDisplay.textContent = '';
+                    }
+                    currentFilterIds = [];
                 },
-                onFailure: function(message) { 
-                    // onFailure 已由 streamApiHandler 处理 statusMessageEl
-                },
-                onRequestError: function(error) { 
-                    // onRequestError 已由 streamApiHandler 处理 statusMessageEl
-                },
+                onFailure: function(message) {},
+                onRequestError: function(error) {},
                 onStreamEnd: function() {
                     startImportBtn.innerHTML = originalStartImportBtnHtml;
                     startImportBtn.disabled = false;
@@ -168,6 +644,11 @@ document.addEventListener('DOMContentLoaded', async function () {
         });
     });
 
+    contentTreeModalEl.addEventListener('hidden.bs.modal', function () {
+        contentTreeSearchInput.value = ''; 
+        setInitialModalState(); 
+    });
+    
     async function loadSharesPage(page, searchTerm = '') {
         const isSearchMode = searchTerm !== ''; 
         let isLoadingFlag, isEndFlag, currentPageToUpdate, sharesArrayToUpdate, listDiv, apiUrl, fetchOptions;
@@ -247,66 +728,6 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
     }
 
-    function renderPublicSharesList(sharesToRender, append = false) {
-        if (!append) {
-            publicSharesListDiv.innerHTML = ''; 
-        }
-
-        if (append && sharesToRender.length === 0) return;
-
-        if (publicSharesListDiv.children.length === 0 && sharesToRender.length === 0 && !append) {
-            publicSharesListDiv.innerHTML = `<p class="text-muted text-center">${currentSearchTerm ? '没有匹配的搜索结果。' : '暂无公共资源。'}</p>`;
-            return;
-        }
-        
-        sharesToRender.forEach(share => {
-            const item = document.createElement('div');
-            item.classList.add('public-share-item', 'd-flex', 'justify-content-between', 'align-items-center');
-            
-            const textContainer = document.createElement('div'); 
-            textContainer.style.cursor = 'pointer'; 
-            textContainer.style.flexGrow = '1'; 
-            textContainer.style.overflow = 'hidden'; 
-            textContainer.style.marginRight = '8px'; 
-            textContainer.style.minWidth = '0'; 
-
-            const nameSpan = document.createElement('span'); 
-            nameSpan.classList.add('share-name');
-            nameSpan.textContent = share.name;
-            textContainer.appendChild(nameSpan);
-
-            const tsSpan = document.createElement('span'); 
-            tsSpan.classList.add('share-timestamp');
-            const date = new Date(share.timestamp);
-            tsSpan.textContent = `更新时间: ${date.toLocaleString('zh-CN')}`; 
-            textContainer.appendChild(tsSpan);
-
-            item.appendChild(textContainer); 
-
-            const viewTreeBtn = document.createElement('button'); 
-            viewTreeBtn.type = 'button';
-            viewTreeBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'view-content-tree-btn');
-            viewTreeBtn.innerHTML = '<i class="bi bi-search"></i>'; 
-            viewTreeBtn.dataset.codehash = share.codeHash; 
-            viewTreeBtn.title = "查看目录结构";
-            viewTreeBtn.style.flexShrink = '0'; 
-
-            item.appendChild(viewTreeBtn); 
-            
-            textContainer.addEventListener('click', function() {
-                document.querySelectorAll('.public-share-item.active').forEach(activeItem => {
-                    activeItem.classList.remove('active');
-                });
-                item.classList.add('active'); 
-
-                selectedPublicCodeHashInput.value = share.codeHash; 
-                updateStatusMessage(statusMessageEl, `已选择公共资源: ${escapeHtml(share.name)}`, 'secondary');
-                logOutputEl.textContent = ''; 
-            });
-            publicSharesListDiv.appendChild(item); 
-        });
-    }
-    
     publicShareSearchInput.addEventListener('input', function(e) {
         currentSearchTerm = e.target.value.trim().toLowerCase(); 
         currentSearchPage = 1;           
@@ -365,49 +786,6 @@ document.addEventListener('DOMContentLoaded', async function () {
             }
         });
     }
-    
-    async function fetchAndDisplayContentTree(params) {
-        const payload = {};
-        if (params.codeHash) payload.codeHash = params.codeHash;
-        if (params.shareCode) payload.shareCode = params.shareCode; 
-
-        if (!payload.codeHash && !payload.shareCode) {
-            contentTreeDisplayArea.innerHTML = '<p class="text-center text-danger">错误: 查看目录树缺少必要的参数。</p>';
-            bsContentTreeModal.show();
-            return;
-        }
-
-        contentTreeDisplayArea.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">加载中...</span></div> <span class="ms-2 text-muted">正在加载目录结构...</span></div>';
-        contentTreeSearchInput.value = ''; 
-        bsContentTreeModal.show(); 
-
-        try {
-            const response = await fetch(API_GET_CONTENT_TREE_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const result = await response.json();
-            contentTreeDisplayArea.innerHTML = ''; 
-
-            if (result.isFinish === true) {
-                if (Array.isArray(result.message) && result.message.length > 0) {
-                    const treeHtml = result.message.map(line => `<div>${escapeHtml(line)}</div>`).join('');
-                    contentTreeDisplayArea.innerHTML = treeHtml;
-                } else if (Array.isArray(result.message) && result.message.length === 0) {
-                    contentTreeDisplayArea.innerHTML = '<p class="text-center text-muted p-3">此分享内容为空。</p>';
-                } else { 
-                    contentTreeDisplayArea.innerHTML = '<p class="text-center text-muted p-3">目录为空或无法解析。</p>';
-                }
-            } else { 
-                contentTreeDisplayArea.innerHTML = `<p class="text-center text-danger p-3">错误: ${escapeHtml(result.message)}</p>`;
-            }
-        } catch (error) {
-            console.error('获取目录树失败:', error);
-            contentTreeDisplayArea.innerHTML = `<p class="text-center text-danger p-3">请求目录树失败: ${escapeHtml(error.message)}</p>`;
-            if (!bsContentTreeModal._isShown) bsContentTreeModal.show();
-        }
-    }
 
     document.getElementById('importTabsContent').addEventListener('click', function(event) {
         const target = event.target.closest('.view-content-tree-btn'); 
@@ -444,20 +822,11 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     contentTreeSearchInput.addEventListener('input', function() {
         const searchTerm = this.value.toLowerCase();
-        const lines = contentTreeDisplayArea.querySelectorAll('div'); 
+        const lines = contentTreeDisplayArea.querySelectorAll('.tree-line-item'); 
         lines.forEach(lineEl => {
             const text = lineEl.textContent.toLowerCase();
             lineEl.style.display = text.includes(searchTerm) ? '' : 'none';
         });
-    });
-
-    contentTreeModalEl.addEventListener('hidden.bs.modal', function () {
-        contentTreeSearchInput.value = ''; 
-        const lines = contentTreeDisplayArea.querySelectorAll('div');
-        lines.forEach(lineEl => {
-            lineEl.style.display = ''; 
-        });
-        contentTreeDisplayArea.innerHTML = ''; 
     });
 
     if (publicSharesListContainer) {
