@@ -144,7 +144,7 @@ def getNameLinkPwd(content_list):
     name = name.replace("  ", " ").replace("  ", " ").replace("  ", " ")
     return {"name": name, "link": link, "pwd": pwd, "raw_link": raw_link, "processed": False}
 
-def startSpider(channel_name, message_after_id=None, save_interval=10):
+def startSpider(channel_name, message_after_id=None, save_interval=10, mode="database"):
 
     # 如果没有填写channel_name, 直接跳过
     if not channel_name:
@@ -207,30 +207,7 @@ def startSpider(channel_name, message_after_id=None, save_interval=10):
     # 保存到Json文件
     with open(f"{channel_name}_message_processed.json", "w", encoding="utf-8") as f:
         json.dump(total_json_processed_data, f, ensure_ascii=False, indent=4)
-    
-    # 调用 Pan123 导出 *.123share 到公共资源库
-    # for key, value in total_json_processed_data.items():
-    #     # 如果name已经存在, 则跳过
-    #     if os.path.exists(f"./public/ok/{value.get('name')}.123share"):
-    #         if debug:
-    #             print(f"[{key}] 跳过：{value.get('name')}, 原因：文件已存在")
-    #         continue
-    #     print(f"[{key}] 导出新增内容：{value.get('name')}, 链接：{value.get('link')}, 密码：{value.get('pwd')}")
-    #     driver = Pan123()
-    #     iter_driver = driver.exportShare(shareKey=value.get("link"), sharePwd=value.get("pwd"), parentFileId=0)
-    #     for current_state in iter_driver:
-    #         if current_state.get("isFinish"):
-    #             with open(f"./public/ok/{value.get('name')}.123share", "w") as f:
-    #                 f.write(current_state.get("message"))
-    #             print(f"[{key}] 导出成功：{value.get('name')}")
-    #         elif current_state.get("isFinish") is None:
-    #             continue
-    #         else:
-    #             print(f"[{key}] 导出失败：{value.get('name')}, 原因：{current_state.get('message')}")
-    #             break
-    
-    # return
-    
+
     # 调用 Pan123 导入数据到数据库
     db = Pan123Database(dbpath=loadSettings("DATABASE_PATH"))
     for key, value in total_json_processed_data.items():
@@ -253,19 +230,30 @@ def startSpider(channel_name, message_after_id=None, save_interval=10):
                 content_tree = generateContentTree(b64string)["message"]
                 content_tree = "\n".join([i[0] for i in content_tree])
                 logger.info(f"[{key}] 为 '{value.get('name')}' 生成的目录树:\n{content_tree}")
-                res = input(f"资源名称 >>> {value.get('name')}\n\n是否导入? (y/[n]) >>>")
-                res = res if res else "n"
-                if res != "y":
-                    logger.info(f"[{key}] 用户取消导入: '{value.get('name')}'")
-                    continue
-                else:                
-                    db.insertData(
-                        codeHash=getStringHash(b64string),
-                        rootFolderName=value.get("name"),
-                        visibleFlag=True,
-                        shareCode=current_state.get("message")
-                        )
-                    # print(f"[{key}] 导入成功：{value.get('name')}")
+                if mode == "database":
+                    res = input(f"资源名称 >>> {value.get('name')}\n\n是否导入? (y/[n]) >>>")
+                    res = res if res else "n"
+                    if res != "y":
+                        logger.info(f"[{key}] 用户取消导入: '{value.get('name')}'")
+                        continue
+                    else:                
+                        db.insertData(
+                            codeHash=getStringHash(b64string),
+                            rootFolderName=value.get("name"),
+                            visibleFlag=True,
+                            shareCode=current_state.get("message")
+                            )
+                        # print(f"[{key}] 导入成功：{value.get('name')}")
+                elif mode == "file":
+                    if not os.path.exists("export"):
+                        os.mkdir("export")
+                    with open(f"export/{value.get('name')}.123share", "w", encoding="utf-8") as f:
+                        f.write(b64string)
+                    with open(f"export/{value.get('name')}.123share.md", "w", encoding="utf-8") as f:
+                        f.write(content_tree)
+                    logger.info(f"[{key}] 导出成功：{value.get('name')}")
+                else:
+                    raise ValueError("mode只能是 'database' 或 'file'")
             elif current_state.get("isFinish") is None:
                 continue
             else:
@@ -284,9 +272,4 @@ if __name__ == "__main__":
     channel_name = "" # 大家应该都知道是telegram的哪个群, 自己填入（@xxxx的xxxx部分）, GitHub不明说了
     message_after_id = 8050 # 从 8050 开始爬, 因为之前的内容【全】【都】【失】【效】【了】
 
-    startSpider(channel_name=channel_name, message_after_id=message_after_id)
-
-    # text = "<div class=\"tgme_widget_message_text js-message_text\" dir=\"auto\">名称：《浴血黑帮（2013）》全6季1080p蓝光原盘REMUX 内封特效字幕<br/><br/>描述：《浴血黑帮》讲述了战后伯明翰地区传奇黑帮家族Peaky Blinders的故事。时间要追溯到1919年，家族成员有一大嗜好，就是将剃刀刀片缝进他们帽子的帽檐之间，这也是“剃刀党”的名称由来。斯里安·墨菲将饰演一名残酷的黑帮份子Tommy Shelby ，是家族兄弟的领袖，嗜血无情。在那个时代，退伍军人、革命者和罪犯，都在社会底层挣扎生存。而当贝尔法斯特的警方负责人开始介入时，Tommy和他的黑帮势力制造出的恐怖统治开始了倾斜<br/><br/>链接：&nbsp;<a href=\"https://www.123912.com/s/IpPUVv-GXOj?%E6%8F%90%E5%8F%96%E7%A0%81:JZMM\" target=\"_blank\" rel=\"noopener\">https://www.123912.com/s/IpPUVv-GXOj?提取码:JZMM</a><br/><br/><i class=\"emoji\" style=\"background-image:url('//telegram.org/img/emoji/40/F09F8FB7.png')\"><b>🏷</b></i> 标签：<a href=\"?q=%23%E5%8E%9F%E7%9B%98REMUX\">#原盘REMUX</a> <a href=\"?q=%23%E8%8B%B1%E5%89%A7\">#英剧</a> <a href=\"?q=%23%E5%89%A7%E6%83%85\">#剧情</a><br/><i class=\"emoji\" style=\"background-image:url('//telegram.org/img/emoji/40/F09F9381.png')\"><b>📁</b></i> 大小：451.18GB<br/><i class=\"emoji\" style=\"background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')\"><b>🎉</b></i> 来自：<a href=\"https://t.me/juziminmao\" target=\"_blank\">@juziminmao</a></div>"
-    # text = beautifyXML(text)
-    # text = getNameLinkPwd(text)
-    # print(text)
+    startSpider(channel_name=channel_name, message_after_id=message_after_id, mode="file")
