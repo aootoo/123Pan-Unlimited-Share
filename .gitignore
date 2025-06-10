@@ -11,3 +11,4 @@ PRIVATE_KEY.md
 /web.build
 web.exe
 /logs
+/assets/*.db
