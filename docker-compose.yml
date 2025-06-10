@@ -36,7 +36,7 @@ services:
             rm -rf source ;
           fi
           echo 'INFO: Cloning repository into ./source...' &&
-          git clone https://ghfast.top/https://github.com/realcwj/123Pan-Unlimited-Share.git source ;
+          git clone https://github.com/realcwj/123Pan-Unlimited-Share.git source ;
         fi &&
         
         cd source &&
