@@ -251,7 +251,7 @@ def startSpider(channel_name, message_after_id=None, save_interval=10):
                 b64string = current_state.get("message")
                 # 获取目录树
                 content_tree = generateContentTree(b64string)["message"]
-                content_tree = "\n".join(content_tree)
+                content_tree = "\n".join([i[0] for i in content_tree])
                 logger.info(f"[{key}] 为 '{value.get('name')}' 生成的目录树:\n{content_tree}")
                 res = input(f"资源名称 >>> {value.get('name')}\n\n是否导入? (y/[n]) >>>")
                 res = res if res else "n"
