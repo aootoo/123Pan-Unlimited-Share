@@ -1,0 +1,51 @@
+services:
+  pan_share_app:
+    build:
+      context: . 
+      dockerfile_inline: |
+        # 选取python:3.13.4镜像
+        FROM python:3.13.4
+
+        # 安装git用于克隆代码
+        RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
+        # 设置工作目录
+        WORKDIR /app
+
+        # 从GitHub克隆最新版本的代码到 /app/123Pan-Unlimited-Share
+        RUN git clone https://github.com/realcwj/123Pan-Unlimited-Share.git
+
+        # 设置工作目录到项目根目录
+        WORKDIR /app/123Pan-Unlimited-Share
+
+        # 安装项目里的 requirements.txt
+        RUN echo "INFO: Installing requirements from requirements.txt..." && \
+            pip install --no-cache-dir -r requirements.txt
+
+        # 安装 gunicorn
+        RUN echo "INFO: Installing gunicorn..." && \
+            pip install --no-cache-dir gunicorn
+
+        # 创建日志目录（这里确保目录存在于镜像内）
+        RUN mkdir -p logs
+
+        # EXPOSE 指令声明容器打算监听的端口，主要是文档作用
+        # 实际绑定的端口由 settings.yaml 决定
+        EXPOSE 33333
+
+        # 基于项目里 gunicorn.conf.py 配置文件启动 flask 项目
+        CMD ["gunicorn", "-c", "gunicorn.conf.py", "web:app"]
+
+    image: 123Pan-Unlimited-Share
+    container_name: 123Pan-Unlimited-Share
+    ports:
+      - "33333:33333" # 主机外部端口:容器内部端口
+    volumes:
+      # 映射项目内的123Pan-Unlimited-Share/logs目录到外部/DOCKER/123Pan-Unlimited-Share目录
+      - /DOCKER/123Pan-Unlimited-Share:/app/123Pan-Unlimited-Share/logs
+      # 映射你自己的配置文件，注意修改成你主机上的路径
+      - /DOCKER/123Pan-Unlimited-Share/settings.yaml:/app/123Pan-Unlimited-Share/settings.yaml:ro
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Asia/Shanghai
