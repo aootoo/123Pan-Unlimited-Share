@@ -92,6 +92,7 @@
     - [导入速度慢怎么办？未来会不会使用多线程上传提速？](#导入速度慢怎么办未来会不会使用多线程上传提速)
     - [分享的文件是否会过期？](#分享的文件是否会过期)
     - [提示登录失败怎么办？](#提示登录失败怎么办)
+  - [Star History](#star-history)
   - [License](#license)
 
 ## 更新日志（自上而下、由新到旧）
@@ -265,6 +266,10 @@
 - 如果还是不行，在该设备上修改一次密码，再尝试使用本工具。
 
 - 如果还是不行，提 GitHub Issues。
+
+## Star History
+
+  [![Star History Chart](https://api.star-history.com/svg?repos=realcwj/123Pan-Unlimited-Share&type=Date)](https://www.star-history.com/#realcwj/123Pan-Unlimited-Share&Date)
 
 ## License
 
