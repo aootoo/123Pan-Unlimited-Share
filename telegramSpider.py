@@ -247,11 +247,12 @@ def startSpider(channel_name, message_after_id=None, save_interval=10, mode="dat
                 elif mode == "file":
                     if not os.path.exists("export"):
                         os.mkdir("export")
-                    with open(f"export/{value.get('name')}.123share", "w", encoding="utf-8") as f:
+                    filename = value.get('name').replace(":", "：").replace("/", "／").replace("\\", "＼").replace("*", "＊").replace("?", "？")
+                    with open(f"./export/{filename}.123share", "w", encoding="utf-8") as f:
                         f.write(b64string)
-                    with open(f"export/{value.get('name')}.123share.md", "w", encoding="utf-8") as f:
+                    with open(f"./export/{filename}.123share.md", "w", encoding="utf-8") as f:
                         f.write(content_tree)
-                    logger.info(f"[{key}] 导出成功：{value.get('name')}")
+                    logger.info(f"[{key}] 导出成功：{filename}")
                 else:
                     raise ValueError("mode只能是 'database' 或 'file'")
             elif current_state.get("isFinish") is None:
@@ -272,4 +273,4 @@ if __name__ == "__main__":
     channel_name = "" # 大家应该都知道是telegram的哪个群, 自己填入（@xxxx的xxxx部分）, GitHub不明说了
     message_after_id = 8050 # 从 8050 开始爬, 因为之前的内容【全】【都】【失】【效】【了】
 
-    startSpider(channel_name=channel_name, message_after_id=message_after_id, mode="file")
+    startSpider(channel_name=channel_name, message_after_id=message_after_id, mode="database")
