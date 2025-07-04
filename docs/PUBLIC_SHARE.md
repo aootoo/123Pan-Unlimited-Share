@@ -37,6 +37,10 @@
 
 ### 已导入资源
 
+- [·无名之辈· 分享的 欧美剧大包 129.34TB](https://www点123684点com/s/oec7Vv-CIYWh?提取码:ZY4K)
+
+- [·无名之辈· 分享的 电视剧大包 190.61TB](https://www点123684点com/s/oec7Vv-rIYWh?提取码:ZY4K)
+
 - [·无名之辈· 分享的 全球Netflix DV+HDR影剧综艺 26.32TB](https://www点123684点com/s/oec7Vv-99YWh?提取码:ZY4K)
 
 - [cokey2 分享的 广播剧500G【整合版】完结 【下】](https://www点123865点com/s/OFYPTd-IzKRA)
