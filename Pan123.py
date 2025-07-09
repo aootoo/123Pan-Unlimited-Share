@@ -261,7 +261,7 @@ class Pan123:
             logger.error(f"创建文件夹请求发生异常 (parentFileId: {parentFileId}, folderName: {folderName}): {e}", exc_info=True)
             return {"isFinish": False, "message": f"创建文件夹请求发生异常: {e}"}
     
-    def uploadFile(self, etag, fileName, parentFileId, size):
+    def uploadFile(self, etag, fileName, parentFileId, size, raw_data=False):
         body = {
             "driveId": 0,
             "etag": etag,
@@ -281,14 +281,68 @@ class Pan123:
             if response_data.get("code") == 0:
                 fileId = response_data.get("data").get("Info").get("FileId")
                 logger.debug(f"上传文件成功: {fileName}, fileId: {fileId}, parentFileId: {parentFileId}")
-                # 返回文件Id
-                return {"isFinish": True, "message": fileId}
+                if raw_data:
+                    return {"isFinish": True, "message": response_data.get("data")}
+                else:
+                    # 返回文件Id
+                    return {"isFinish": True, "message": fileId}
             else:
                 logger.error(f"上传文件失败 (parentFileId: {parentFileId}, fileName: {fileName}): {json.dumps(response_data, ensure_ascii=False)}")
                 return {"isFinish": False, "message": f"上传文件失败：{response_data}"}
         except Exception as e:
             logger.error(f"上传文件请求发生异常 (parentFileId: {parentFileId}, fileName: {fileName}): {e}", exc_info=True)
             return {"isFinish": False, "message": f"上传文件请求发生异常: {e}"}
+    
+    def deleteFile(self, fileList):
+        body = {
+            "driveId": 0,
+            "event": "intoRecycle",
+            "operatePlace": 1,
+			"operation": True,
+			"fileTrashInfoList": fileList, # List[dict, ...]
+        }
+        try:
+            response_data = requests.post(
+                url = self.getActionUrl("Trash"),
+                headers = self.headers,
+                json = body
+            ).json()
+            if response_data.get("code") == 0:
+                logger.debug(f"删除文件成功: {fileList}")
+                return {"isFinish": True, "message": "删除文件成功"}
+            else:
+                logger.error(f"删除文件失败: {json.dumps(response_data, ensure_ascii=False)}")
+                return {"isFinish": False, "message": f"删除文件失败：{response_data}"}
+        except Exception as e:
+            logger.error(f"删除文件请求发生异常: {e}", exc_info=True)
+            return {"isFinish": False, "message": f"删除文件请求发生异常: {e}"}
+
+    def downloadFile(self, etag, fileId, S3KeyFlag, type, fileName, size):
+        body = {
+        "driveId": 0,
+        "etag": etag,
+        "fileId": fileId,
+        "s3keyFlag": S3KeyFlag,
+        "type": type,
+        "fileName": fileName,
+        "size": size
+        }
+        try:
+            response_data = requests.post(
+                url = self.getActionUrl("DownloadInfo"),
+                headers = self.headers,
+                json = body
+            ).json()
+            if response_data.get("code") == 0:
+                logger.debug(f"获取文件下载链接成功: {response_data}")
+                return {"isFinish": True, "message": response_data.get("data").get("DownloadUrl")}
+            else:
+                logger.error(f"获取文件下载链接失败: {json.dumps(response_data, ensure_ascii=False)}")
+                return {"isFinish": False, "message": f"获取文件下载链接失败：{response_data}"}
+        except Exception as e:
+            logger.error(f"获取文件下载链接请求发生异常: {e}", exc_info=True)
+            return {"isFinish": False, "message": f"获取文件下载链接请求发生异常: {e}"}
+        
 
     def importFiles(self, base64Data, rootFolderName, filterIds = []):
         # 读取数据
