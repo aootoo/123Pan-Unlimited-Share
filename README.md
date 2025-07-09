@@ -2,6 +2,8 @@
 
 - 欢迎提 Pull Requests 和 功能建议 和 **详细的可复现的** Bug 反馈。
 
+- **2025-07-09**：担心网盘容量不够、保存不了这么多资源？请看新项目，直接把本项目的数据库挂载成 WebDAV 使用：[>>> 点我访问 <<<](https://github.com/realcwj/123Pan-Unlimited-WebDAV)
+
 - **2025-06-15**：实验性版本及对应的油猴脚本已更新，抢先体验：[>>> 点我访问 <<<](https://pan.whose.icu/)
 
 - **2025-05-31**：自己部署/源代码已发布：[Release: v2-alpha](https://github.com/realcwj/123Pan-Unlimited-Share/releases/tag/v2-alpha)
