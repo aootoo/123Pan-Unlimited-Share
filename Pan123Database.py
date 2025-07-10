@@ -191,12 +191,11 @@ class Pan123Database:
             logger.debug(f"通过 codeHash '{codeHash}' 未查询到数据")
             return None
 
-    def listData(self, visibleFlag: bool = True, page: int = 1):
+    def listData(self, visibleFlag: bool = True, page: int = 1, limit: int = 100):
         # 只展示visibleFlag为True (公开且审核通过) 的数据
         # 返回 [(codeHash, rootFolderName, timeStamp), ...], is_end_page
         if page < 1:
             page = 1
-        limit = 100
         offset = (page - 1) * limit
 
         # 获取总记录数
