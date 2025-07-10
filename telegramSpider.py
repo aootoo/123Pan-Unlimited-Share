@@ -129,7 +129,7 @@ def getNameLinkPwd(content_list):
         #         print("这里替换了name变量")
         #         print(f"原文>>>{line}")
         #         print(f"名称>>>{name}")
-        if "/s/" in line:
+        if ".com/s/" in line:
             raw_link = line
             line = line.replace("提取码", "?提取码")
             # print(f"原文>>>{line}")
